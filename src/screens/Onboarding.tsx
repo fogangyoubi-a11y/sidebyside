@@ -12,6 +12,7 @@ import { OtpInput6 } from '@/components/security/OtpInput6';
 import { PasswordStrength } from '@/components/security/PasswordStrength';
 import { DocumentUpload, SelfieUpload } from '@/components/security/DocumentUpload';
 import { TrustBadge } from '@/components/security/TrustBadge';
+import { DateOfBirthInput } from '@/components/security/DateOfBirthInput';
 import { cn } from '@/lib/utils';
 import {
   validatePhoneCM,
@@ -426,9 +427,9 @@ function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext }: {
 function IdentityStep({ form, onUpdate, onBack, onNext }: {
   form: FormState; onUpdate: (p: Partial<FormState>) => void; onBack: () => void; onNext: () => void;
 }) {
-  const age = form.birthDate ? computeAge(form.birthDate) : 0;
-  const adult = age >= 18;
-  const validBirth = form.birthDate.length === 10 && adult;
+  // La date de naissance est validée par DateOfBirthInput. Si elle est au format
+  // ISO complet (YYYY-MM-DD), elle est valide ; si "partial:..." ou vide, elle ne l'est pas.
+  const validBirth = /^\d{4}-\d{2}-\d{2}$/.test(form.birthDate);
   const valid = form.firstName.trim().length >= 2 && form.lastName.trim().length >= 2 && validBirth;
 
   return (
@@ -455,30 +456,15 @@ function IdentityStep({ form, onUpdate, onBack, onNext }: {
             leftIcon={<User className="h-4 w-4" />}
           />
         </div>
-        <Input
-          label="Date de naissance"
-          type="date"
+        <DateOfBirthInput
           value={form.birthDate}
-          onChange={(e) => onUpdate({ birthDate: e.target.value })}
-          max={new Date().toISOString().slice(0, 10)}
-          hint={form.birthDate && adult ? `Âge : ${age} ans` : undefined}
-          error={form.birthDate && !adult ? 'Vous devez avoir au moins 18 ans' : undefined}
+          onChange={(birthDate) => onUpdate({ birthDate })}
         />
       </div>
 
       <NavRow onBack={onBack} onNext={onNext} disabled={!valid} />
     </StepWrapper>
   );
-}
-
-function computeAge(birthISO: string): number {
-  const b = new Date(birthISO);
-  if (isNaN(b.getTime())) return 0;
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  const m = now.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
-  return age;
 }
 
 /* ----------------------------- 5. PASSWORD ----------------------------- */
