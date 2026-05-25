@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { CITIES } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
+import { TrustBadge } from '@/components/security/TrustBadge';
 import type { Screen, SearchFilters, Trip, TripOption } from '@/lib/types';
 
 interface SearchTripsProps {
@@ -328,12 +329,8 @@ function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: numb
             <div className="leading-tight">
               <div className="flex items-center gap-1.5 text-sm font-bold text-sbs-dark">
                 {trip.driver.name}
-                {trip.driver.verified && (
-                  <span className="grid h-4 w-4 place-items-center rounded-full bg-sbs-blue text-white" title="Identité vérifiée">
-                    <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="2,6 5,9 10,3" />
-                    </svg>
-                  </span>
+                {trip.driver.trustLevel && (
+                  <TrustBadge level={trip.driver.trustLevel} size="sm" showLabel={false} />
                 )}
               </div>
               <div className="flex items-center gap-1 text-[11px] text-sbs-muted">

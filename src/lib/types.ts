@@ -45,6 +45,7 @@ export interface DriverProfile {
     plate: string;         // masquée partiellement
   };
   verified: boolean;
+  trustLevel?: 'basic' | 'verified' | 'premium';
   bio?: string;
 }
 

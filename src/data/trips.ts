@@ -15,6 +15,7 @@ const DRIVERS: DriverProfile[] = [
     yearsActive: 3,
     car: { model: 'Toyota Corolla', color: 'Blanc', plate: 'LT 4** AA' },
     verified: true,
+    trustLevel: 'premium',
     bio: 'Chauffeur expérimenté, ponctuel. J\'aime la conduite calme et la bonne musique.',
   },
   {
@@ -25,6 +26,7 @@ const DRIVERS: DriverProfile[] = [
     yearsActive: 2,
     car: { model: 'Hyundai i10', color: 'Gris', plate: 'OU 7** BC' },
     verified: true,
+    trustLevel: 'premium',
     bio: 'Conductrice attentive. Voiture climatisée et propre. Trajets sans-fumeur uniquement.',
   },
   {
@@ -35,6 +37,7 @@ const DRIVERS: DriverProfile[] = [
     yearsActive: 1,
     car: { model: 'Renault Logan', color: 'Bleu', plate: 'LT 2** XY' },
     verified: true,
+    trustLevel: 'verified',
     bio: 'Étudiant, je fais ce trajet chaque vendredi pour rejoindre ma famille.',
   },
   {
@@ -45,6 +48,7 @@ const DRIVERS: DriverProfile[] = [
     yearsActive: 5,
     car: { model: 'Toyota RAV4', color: 'Noir', plate: 'CE 9** ZZ' },
     verified: true,
+    trustLevel: 'premium',
     bio: 'Cinq années de covoiturage. Bagages volumineux acceptés.',
   },
   {
@@ -55,6 +59,7 @@ const DRIVERS: DriverProfile[] = [
     yearsActive: 2,
     car: { model: 'Suzuki Swift', color: 'Rouge', plate: 'OU 5** KL' },
     verified: false,
+    trustLevel: 'basic',
     bio: 'Je fais Douala-Bafoussam le week-end. Trajets en musique gospel.',
   },
 ];
