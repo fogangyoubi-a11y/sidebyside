@@ -25,3 +25,8 @@ dist-ssr
 
 # Claude Code — config locale (launch.json, settings) à ne pas versionner
 .claude/
+
+# Outils de preview/dev locaux (ne pas versionner)
+preview/cloudflared.exe
+preview/qr.png
+preview/qr.svg
