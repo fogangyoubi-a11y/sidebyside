@@ -129,6 +129,24 @@ const COMMON_PASSWORDS = new Set([
 /** Exigences minimales SideBySide. */
 export const PWD_MIN_LENGTH = 12;
 
+/**
+ * Génère un mot de passe fort, mémorisable, qui satisfait tous les critères :
+ * - Ville + Ville + Symbole + 4 chiffres
+ * - Ex : "Douala-Bafoussam!4827"
+ * Combinatoire suffisante pour ne pas tomber dans la blacklist.
+ */
+export function suggestStrongPassword(): string {
+  const cities = ['Douala', 'Yaoundé', 'Bamenda', 'Bafoussam', 'Kribi', 'Limbé', 'Dschang', 'Garoua', 'Maroua'];
+  const symbols = ['!', '@', '#', '$', '%', '&', '*', '+'];
+  const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+  let c1 = pick(cities);
+  let c2 = pick(cities);
+  while (c2 === c1) c2 = pick(cities);
+  const sym = pick(symbols);
+  const num = Math.floor(Math.random() * 9000) + 1000;
+  return `${c1}-${c2}${sym}${num}`;
+}
+
 export function checkPassword(pwd: string): PasswordCheck {
   const rules = {
     minLength: pwd.length >= PWD_MIN_LENGTH,

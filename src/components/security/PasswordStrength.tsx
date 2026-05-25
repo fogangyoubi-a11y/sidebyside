@@ -1,7 +1,7 @@
-import { Eye, EyeOff, Check, X, Lock } from 'lucide-react';
+import { Eye, EyeOff, Check, X, Lock, Sparkles, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { checkPassword, PWD_MIN_LENGTH, type PasswordCheck } from '@/lib/security';
+import { checkPassword, PWD_MIN_LENGTH, suggestStrongPassword, type PasswordCheck } from '@/lib/security';
 
 interface PasswordStrengthProps {
   value: string;
@@ -43,6 +43,34 @@ export function PasswordStrength({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Bouton "Suggérer un mot de passe fort" */}
+      <button
+        type="button"
+        onClick={() => {
+          const pwd = suggestStrongPassword();
+          onChange(pwd);
+          if (onConfirmChange) onConfirmChange(pwd);
+          setShow(true);          // affiche d'office pour que l'user puisse le noter
+          setShowConfirm(true);
+        }}
+        className="group flex w-full items-center justify-between gap-2 rounded-card border-2 border-dashed border-sbs-blue/40 bg-sbs-blue-light/30 px-3 py-2.5 text-left transition-colors hover:border-sbs-blue hover:bg-sbs-blue-light"
+      >
+        <span className="flex items-center gap-2 text-xs">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-sbs-blue text-white">
+            <Sparkles className="h-3.5 w-3.5" />
+          </span>
+          <span>
+            <span className="block font-display text-sm font-extrabold text-sbs-dark">
+              Suggérer un mot de passe fort
+            </span>
+            <span className="text-[10px] text-sbs-muted">
+              Remplit les 2 champs en un clic — pensez à le noter !
+            </span>
+          </span>
+        </span>
+        <Copy className="h-4 w-4 text-sbs-blue transition-transform group-hover:scale-110" />
+      </button>
+
       {/* Champ mot de passe */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-sbs-dark">{label}</label>
