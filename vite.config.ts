@@ -12,5 +12,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Autorise les previews via Cloudflare Tunnel (URLs *.trycloudflare.com)
+    // Le point initial active le wildcard sous-domaine.
+    allowedHosts: ['.trycloudflare.com', '.loca.lt', '.ngrok.io', '.ngrok-free.app'],
   },
 });
