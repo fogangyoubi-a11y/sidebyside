@@ -1,0 +1,577 @@
+
+
+SIDEBYSIDE
+
+Plateforme de Covoiturage Interurbain au Cameroun
+
+Route Douala – Bafoussam
+
+
+CAHIER DES CHARGES FONCTIONNEL
+
+
+
+Informations du projet
+Porteur du projet
+Fogang Youbi Brice Arnold
+Pays cible
+Cameroun
+Axe de lancement
+Douala – Bafoussam
+Type d'application
+Mobile (iOS & Android) + Web
+Langues
+Français / Anglais
+Version du document
+1.0
+Date
+Mai 2026
+Statut
+Draft initial
+
+
+
+1. Présentation du Projet
+
+
+1.1 Contexte et Opportunité
+
+Le Cameroun est un pays bilingue (français/anglais) d'environ 27 millions d'habitants, avec un réseau de transport interurbain très actif mais peu digitalisé. Les voyages entre grandes villes comme Douala et Bafoussam se font principalement via des agences de transport informelles ou du covoiturage non organisé.
+
+
+SIDEBYSIDE est une plateforme de covoiturage qui met en relation des conducteurs particuliers souhaitant partager leur trajet avec des passagers, sur la route Douala–Bafoussam dans un premier temps, avant d'envisager une expansion nationale.
+
+
+1.2 Objectifs
+
+
+Digitaliser et sécuriser le covoiturage interurbain au Cameroun
+
+
+Réduire le coût des déplacements pour les passagers
+
+
+Offrir un revenu complémentaire aux conducteurs
+
+
+Créer une communauté de confiance entre voyageurs camerounais
+
+
+Lancer sur Douala–Bafoussam puis étendre à d'autres axes
+
+
+1.3 Public Cible
+
+
+Profil
+
+Description
+
+Besoin principal
+Passager
+Toute personne souhaitant voyager Douala–Bafoussam
+Trouver un trajet sûr et abordable
+Chauffeur
+Conducteur particulier faisant régulièrement ce trajet
+Rentabiliser son voyage
+Administrateur
+Équipe SIDEBYSIDE
+Gérer la plateforme
+
+
+
+2. Fonctionnalités de l'Application
+
+
+2.1 Module Authentification
+
+
+Inscription via numéro de téléphone camerounais (+237) ou email
+
+
+Connexion via Google / Facebook
+
+
+Vérification par SMS (OTP)
+
+
+Choix du rôle dès l'inscription : Passager ou Chauffeur
+
+
+Basculement entre les deux rôles depuis le profil
+
+
+Récupération du mot de passe
+
+
+2.2 Module Passager
+
+Recherche de trajet
+
+
+Saisie du point de départ et de destination
+
+
+Sélection de la date et de l'heure
+
+
+Filtres : prix, heure de départ, note du chauffeur, options (bagages, animaux...)
+
+
+Affichage des résultats avec carte du chauffeur, prix, places disponibles
+
+Réservation
+
+
+Sélection du nombre de places
+
+
+Confirmation et paiement
+
+
+Réception d'un billet de réservation numérique
+
+
+Consultation et annulation de ses réservations
+
+
+2.3 Module Chauffeur
+
+Publication de trajet
+
+
+Saisie de l'itinéraire, date, heure de départ
+
+
+Définition du nombre de places disponibles
+
+
+Définition du prix par passager
+
+
+Options : bagages, musique, non-fumeur, animaux
+
+Gestion des passagers
+
+
+Visualisation de la liste des passagers confirmés
+
+
+Accès aux contacts (téléphone, messagerie interne)
+
+
+Possibilité d'accepter ou refuser une demande de réservation
+
+
+Suivi des gains par trajet
+
+
+2.4 Module Paiement
+
+
+Intégration MTN Mobile Money
+
+
+Intégration Orange Money
+
+
+Paiement par carte bancaire (Visa/Mastercard)
+
+
+Portefeuille virtuel SIDEBYSIDE
+
+
+Historique des transactions
+
+
+Politique d'annulation et remboursement
+
+
+Versement des gains au chauffeur après le trajet
+
+
+2.5 Module Messagerie
+
+
+Chat en temps réel entre passager et chauffeur
+
+
+Notifications push (nouvelle réservation, message, rappel de trajet)
+
+
+Notifications SMS pour les utilisateurs sans internet
+
+
+Masquage des numéros de téléphone pour la confidentialité
+
+
+2.6 Module Notation & Avis
+
+
+Notation du chauffeur par le passager (1 à 5 étoiles)
+
+
+Notation du passager par le chauffeur
+
+
+Laisser un commentaire après chaque trajet
+
+
+Affichage de la note moyenne sur le profil public
+
+
+Signalement d'un utilisateur
+
+
+2.7 Module Profil
+
+
+Photo de profil, nom, numéro vérifié
+
+
+Historique des trajets
+
+
+Statistiques : nombre de trajets, note, avis
+
+
+Vérification d'identité (CNI / passeport)
+
+
+Gestion des préférences et paramètres
+
+
+2.8 Module Administration (Back-office)
+
+
+Tableau de bord : utilisateurs, trajets, revenus
+
+
+Gestion des utilisateurs (validation, suspension, suppression)
+
+
+Gestion des signalements et litiges
+
+
+Statistiques et rapports d'activité
+
+
+Gestion des commissions et paiements
+
+
+
+3. Architecture Technique
+
+
+3.1 Choix Technologiques
+
+
+Composant
+
+Technologie recommandée
+
+Justification
+App mobile
+React Native
+iOS + Android avec un seul code
+Interface web
+React.js
+Tableau de bord admin
+Backend / API
+Node.js + Express
+Rapide, scalable
+Base de données
+PostgreSQL
+Structuré, fiable
+Temps réel
+Socket.io
+Messagerie instantanée
+Paiement
+CinetPay / Campay
+Spécialisé Afrique (Mobile Money)
+Hébergement
+AWS / DigitalOcean
+Fiabilité et performance
+SMS / OTP
+Twilio ou Africa's Talking
+Couverture Cameroun
+Cartographie
+Google Maps API
+Itinéraires et localisation
+
+
+3.2 Sécurité
+
+
+Authentification JWT (JSON Web Token)
+
+
+Chiffrement des données sensibles (HTTPS, SSL)
+
+
+Vérification d'identité obligatoire pour les chauffeurs
+
+
+Masquage des numéros de téléphone entre utilisateurs
+
+
+Contrôle d'accès basé sur les rôles (RBAC)
+
+
+Sauvegarde quotidienne des données
+
+
+3.3 Fonctionnement Hors-ligne Partiel
+
+La route Douala–Bafoussam traverse des zones à faible couverture réseau. L'application devra :
+
+
+Mettre en cache les informations du trajet en cours
+
+
+Permettre l'accès au billet de réservation sans connexion
+
+
+Synchroniser automatiquement à la reconnexion
+
+
+
+4. Cartographie des Écrans
+
+
+Écran
+
+Rôle
+
+Description
+Splash / Onboarding
+Tous
+Introduction à l'application
+Inscription / Connexion
+Tous
+Création de compte et authentification
+Accueil Passager
+Passager
+Recherche de trajet, trajets disponibles
+Accueil Chauffeur
+Chauffeur
+Publier un trajet, trajets en cours
+Recherche de trajet
+Passager
+Filtres, résultats, sélection
+Détail trajet
+Passager
+Infos complètes, profil chauffeur
+Réservation
+Passager
+Sélection places, confirmation
+Paiement
+Passager
+Mobile Money, carte, portefeuille
+Proposer un trajet
+Chauffeur
+Formulaire de publication
+Mes trajets
+Tous
+Historique et trajets à venir
+Détail trajet (gestion)
+Chauffeur
+Liste passagers, gains, options
+Messagerie
+Tous
+Chat avec passager/chauffeur
+Notation
+Tous
+Avis après trajet
+Profil
+Tous
+Informations, paramètres, basculement de rôle
+Administration
+Admin
+Back-office de gestion
+
+
+
+5. Modèle Économique
+
+
+5.1 Sources de Revenus
+
+
+Source
+
+Détail
+
+Estimation
+Commission sur trajet
+10 à 15% prélevés sur chaque réservation
+Source principale
+Abonnement chauffeur Premium
+Visibilité améliorée, statistiques avancées
+2 000–5 000 F/mois
+Publicité locale
+Annonces de commerces locaux ciblées
+Revenus secondaires
+Assurance voyage optionnelle
+Couverture proposée au passager
+À explorer
+
+
+5.2 Simulation de Revenus
+
+Exemple pour 50 trajets/jour à 3 500 F CFA avec commission de 12% :
+
+
+Commission par trajet : 420 F CFA
+
+
+Revenu journalier : 21 000 F CFA (~35 USD)
+
+
+Revenu mensuel estimé : 630 000 F CFA (~1 050 USD)
+
+
+Revenu annuel estimé : ~7 560 000 F CFA (~12 600 USD)
+
+Ces chiffres augmentent rapidement avec l'extension à de nouveaux axes.
+
+
+
+6. Plan de Développement
+
+
+Phase
+
+Durée
+
+Contenu
+
+Livrable
+Phase 1
+MVP
+2–3 mois
+Authentification, recherche trajet, réservation, paiement Mobile Money, profil de base
+App fonctionnelle Douala–Bafoussam
+Phase 2
+Consolidation
+1–2 mois
+Messagerie, notation, notifications, améliorations UX
+Version stabile et testée
+Phase 3
+Croissance
+2–3 mois
+Back-office admin, abonnements chauffeurs, nouveaux axes
+Expansion nationale
+Phase 4
+Évolution
+En continu
+Mode hors-ligne avancé, assurance, partenariats
+Application mature
+
+
+
+7. Contraintes et Défis
+
+
+7.1 Contraintes Techniques
+
+
+Couverture réseau limitée entre Douala et Bafoussam — nécessite un mode hors-ligne partiel
+
+
+Diversité des appareils mobiles — l'app doit fonctionner sur des smartphones d'entrée de gamme
+
+
+Intégration des solutions de paiement locales (MTN Money, Orange Money)
+
+
+7.2 Contraintes Réglementaires
+
+
+Respect de la loi camerounaise sur la protection des données personnelles
+
+
+Conformité avec les réglementations du transport en commun
+
+
+Conditions générales d'utilisation et politique de confidentialité claires
+
+
+7.3 Défis Opérationnels
+
+
+Attirer les premiers chauffeurs avant d'avoir des passagers (problème de l'oeuf et de la poule)
+
+
+Instaurer la confiance entre utilisateurs : vérification d'identité, avis, signalements
+
+
+Concurrence avec les agences de transport traditionnelles
+
+
+Support client en français et en anglais
+
+
+
+8. Indicateurs de Succès (KPIs)
+
+
+Indicateur
+
+Objectif à 6 mois
+
+Objectif à 1 an
+Utilisateurs inscrits
+500+
+5 000+
+Trajets effectués
+200/mois
+2 000/mois
+Note moyenne app stores
+4.0+
+4.5+
+Taux de rétention
+40%
+60%
+Chauffeurs actifs
+50+
+300+
+Axes couverts
+1 (Dla–Baf)
+5+ axes
+
+
+
+9. Glossaire
+
+
+Terme
+
+Définition
+MVP
+Minimum Viable Product — version minimale mais fonctionnelle de l'app
+Mobile Money
+Paiement via téléphone mobile (MTN Money, Orange Money)
+OTP
+One-Time Password — code de vérification à usage unique envoyé par SMS
+JWT
+JSON Web Token — mécanisme sécurisé d'authentification
+RBAC
+Role-Based Access Control — contrôle d'accès selon le rôle
+KPI
+Key Performance Indicator — indicateur clé de performance
+Back-office
+Interface d'administration non visible des utilisateurs finaux
+React Native
+Framework permettant de créer une app mobile iOS et Android avec un seul code
+
+
+
+
+
+
+Document préparé avec Claude AI — Anthropic
+
+Fogang Youbi Brice Arnold — Bruxelles, Belgique — 2026
+
+
