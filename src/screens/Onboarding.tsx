@@ -194,9 +194,9 @@ function Header({ onNavigate }: { onNavigate: (s: Screen) => void }) {
             Side<span className="text-sbs-yellow-dark">By</span>Side
           </span>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-green/30 bg-sbs-green/5 px-2 py-1 text-[10px] font-bold text-sbs-green">
+        <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-green/30 bg-sbs-green/5 px-2 py-1 text-[10px] font-bold text-sbs-green" title="Version de l'app">
           <Shield className="h-3 w-3" />
-          Sécurisé
+          Sécurisé v0.3
         </span>
       </div>
     </header>

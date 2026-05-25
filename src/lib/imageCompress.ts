@@ -28,45 +28,50 @@ export async function compressImage(file: File, opts: CompressOptions = {}): Pro
   const maxDim = opts.maxDim ?? 1600;
   const quality = opts.quality ?? 0.85;
 
-  // Si déjà petit ET pas une HEIC/exotique, on garde tel quel
+  // Si déjà petit ET format navigateur natif, on garde tel quel
   if (file.size < 500 * 1024 && /^image\/(jpe?g|png|webp)$/i.test(file.type)) {
     return file;
   }
 
-  // Charger l'image dans un canvas
-  const dataUrl = await readAsDataUrl(file);
-  const img = await loadImage(dataUrl);
+  // Tentative de compression — si quoi que ce soit échoue, on garde l'original
+  // (notamment HEIC sur certains téléphones que le navigateur ne sait pas décoder)
+  try {
+    const dataUrl = await readAsDataUrl(file);
+    const img = await loadImage(dataUrl);
 
-  // Calculer les nouvelles dimensions en gardant le ratio
-  let { width, height } = img;
-  if (width > maxDim || height > maxDim) {
-    if (width > height) {
-      height = Math.round((height * maxDim) / width);
-      width = maxDim;
-    } else {
-      width = Math.round((width * maxDim) / height);
-      height = maxDim;
+    let { width, height } = img;
+    if (!width || !height) return file; // image non décodée par le navigateur (HEIC ?)
+
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
     }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality);
+    });
+    if (!blob) return file;
+    if (blob.size >= file.size) return file;
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo';
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    // Cas HEIC, fichier corrompu, ou OOM — on retourne le fichier tel quel
+    // L'utilisateur verra quand même son preview (sauf si HEIC sur navigateur non compatible)
+    return file;
   }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return file; // fallback silencieux
-  ctx.drawImage(img, 0, 0, width, height);
-
-  // Encoder en JPEG
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((b) => resolve(b), 'image/jpeg', quality);
-  });
-  if (!blob) return file;
-
-  // Si le résultat est plus gros que l'original (rare avec PNG plat), on garde l'original
-  if (blob.size >= file.size) return file;
-
-  const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo';
-  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
 }
 
 function readAsDataUrl(file: File): Promise<string> {
