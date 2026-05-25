@@ -4,27 +4,60 @@ import { LandingPage } from '@/screens/LandingPage';
 import { SearchTrips } from '@/screens/SearchTrips';
 import { Onboarding } from '@/screens/Onboarding';
 import { ComingSoon } from '@/screens/ComingSoon';
+import { TripDetail } from '@/screens/TripDetail';
+import { Booking } from '@/screens/Booking';
+import { PublishTrip } from '@/screens/PublishTrip';
+import { Messages } from '@/screens/Messages';
+
+interface RouteState {
+  screen: Screen;
+  params: Record<string, string>;
+}
 
 function App() {
-  const [screen, setScreen] = useState<Screen>('landing');
+  const [route, setRoute] = useState<RouteState>({ screen: 'landing', params: {} });
 
-  const navigate = (s: Screen) => {
-    setScreen(s);
+  const navigate = (screen: Screen, params: Record<string, string> = {}) => {
+    setRoute({ screen, params });
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  switch (screen) {
+  switch (route.screen) {
     case 'landing':
       return <LandingPage onNavigate={navigate} />;
+
     case 'search':
     case 'search-results':
       return <SearchTrips onNavigate={navigate} />;
+
     case 'onboarding':
     case 'auth':
     case 'role-pick':
       return <Onboarding onNavigate={navigate} />;
+
+    case 'trip-detail':
+      return <TripDetail tripId={route.params.tripId ?? 't1'} onNavigate={navigate} />;
+
+    case 'booking':
+    case 'payment':
+    case 'booking-confirmed':
+      return (
+        <Booking
+          tripId={route.params.tripId ?? 't1'}
+          seats={Number(route.params.seats ?? '1')}
+          onNavigate={navigate}
+        />
+      );
+
+    case 'publish-trip':
+    case 'driver-trips':
+      return <PublishTrip onNavigate={navigate} />;
+
+    case 'messages':
+      return <Messages onNavigate={navigate} />;
+
     default:
-      return <ComingSoon screen={screen} onNavigate={navigate} />;
+      return <ComingSoon screen={route.screen} onNavigate={navigate} />;
   }
 }
 

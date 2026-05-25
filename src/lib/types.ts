@@ -19,6 +19,7 @@ export type Screen =
   | 'booking-confirmed'
   | 'publish-trip'
   | 'driver-trips'
+  | 'messages'
   | 'profile'
   | 'admin';
 
@@ -95,3 +96,42 @@ export interface Booking {
 }
 
 export type PaymentMethod = 'mtn' | 'orange' | 'card' | 'wallet';
+
+/* ============================================================
+   MESSAGERIE
+   ============================================================ */
+
+export type MessageSender = 'me' | 'other' | 'system';
+
+export interface Message {
+  id: string;
+  sender: MessageSender;
+  /** Texte affiché — les numéros y sont automatiquement masqués. */
+  text: string;
+  /** Date d'émission (ISO). */
+  sentAt: string;
+  /** Pour les messages "moi" : statut de lecture. */
+  read?: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  /** Trajet associé à la conversation. */
+  tripId: string;
+  /** Interlocuteur (pour le passager : son chauffeur ; pour le chauffeur : le passager). */
+  otherUserName: string;
+  otherUserAvatar?: string;
+  otherTrustLevel?: 'basic' | 'verified' | 'premium';
+  /** Numéro masqué affiché (jamais le vrai). */
+  otherMaskedPhone: string;
+  /** Résumé du trajet pour le header. */
+  tripSummary: string;       // ex. "Douala → Bafoussam · 06h30 demain"
+  messages: Message[];
+  unreadCount: number;
+}
+
+/* ============================================================
+   SOS / URGENCE
+   ============================================================ */
+
+export type SosAction = 'call-police' | 'call-gendarmerie' | 'call-ambulance' | 'call-sbs-support' | 'share-location';

@@ -56,6 +56,15 @@ function LandingHeader({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('messages')}
+            aria-label="Messagerie"
+            className="relative grid h-10 w-10 place-items-center rounded-pill border border-sbs-border text-sbs-dark transition-colors hover:bg-sbs-border-soft"
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-sbs-red px-1 text-[9px] font-extrabold text-white shadow-soft">3</span>
+          </button>
           <Button
             variant="ghost"
             size="sm"

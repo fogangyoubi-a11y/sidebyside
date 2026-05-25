@@ -12,7 +12,7 @@ import { TrustBadge } from '@/components/security/TrustBadge';
 import type { Screen, SearchFilters, Trip, TripOption } from '@/lib/types';
 
 interface SearchTripsProps {
-  onNavigate: (s: Screen) => void;
+  onNavigate: (s: Screen, params?: Record<string, string>) => void;
 }
 
 const optionIcons: Record<TripOption, { icon: typeof Briefcase; label: string }> = {
@@ -140,7 +140,7 @@ export function SearchTrips({ onNavigate }: SearchTripsProps) {
                   key={trip.id}
                   trip={trip}
                   passengers={filters.passengers}
-                  onSelect={() => onNavigate('trip-detail')}
+                  onSelect={() => onNavigate('trip-detail', { tripId: trip.id })}
                 />
               ))}
             </ul>
@@ -363,7 +363,7 @@ function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: numb
 
 /* ----------------------------- Empty ----------------------------- */
 
-function EmptyResults({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+function EmptyResults({ onNavigate }: { onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
   return (
     <div className="rounded-card-lg border border-dashed border-sbs-border bg-white px-6 py-12 text-center">
       <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-sbs-yellow-light text-3xl">
