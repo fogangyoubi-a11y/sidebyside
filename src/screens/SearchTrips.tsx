@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock, Loader2, Cloud, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
-import { CITIES } from '@/data/cities';
+import { CITIES, findCity } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
+import { ApiClient, type ApiTrip } from '@/lib/api';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import type { Screen, SearchFilters, Trip, TripOption } from '@/lib/types';
@@ -31,8 +32,38 @@ export function SearchTrips({ onNavigate }: SearchTripsProps) {
     passengers: 1,
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [apiTrips, setApiTrips] = useState<Trip[] | null>(null);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const results = useMemo(() => searchTrips(filters), [filters]);
+  // Recherche live côté API à chaque changement de filtre
+  useEffect(() => {
+    let cancelled = false;
+    setApiLoading(true);
+    setApiError(null);
+    ApiClient.searchTrips({
+      from: filters.fromId,
+      to: filters.toId,
+      date: filters.date,
+      passengers: filters.passengers,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setApiTrips(data.trips.map(adaptApiTrip));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setApiError(err.message ?? 'Backend indisponible');
+        setApiTrips(null);
+      })
+      .finally(() => { if (!cancelled) setApiLoading(false); });
+    return () => { cancelled = true; };
+  }, [filters]);
+
+  // Fallback : si l'API n'a rien renvoyé, on affiche les mocks
+  const mockResults = useMemo(() => searchTrips(filters), [filters]);
+  const results = apiTrips ?? mockResults;
+  const isLive = apiTrips !== null;
 
   function swapCities() {
     setFilters((f) => ({ ...f, fromId: f.toId, toId: f.fromId }));
@@ -120,7 +151,25 @@ export function SearchTrips({ onNavigate }: SearchTripsProps) {
               <Filter className="h-3.5 w-3.5" />
               {showFilters ? 'Masquer les filtres' : 'Filtres avancés'}
             </button>
-            <Badge tone="blue">{results.length} trajet{results.length > 1 ? 's' : ''}</Badge>
+            <div className="flex items-center gap-2">
+              {apiLoading ? (
+                <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-border bg-white px-2 py-0.5 text-[10px] font-semibold text-sbs-muted">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Recherche…
+                </span>
+              ) : isLive ? (
+                <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-green/30 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-sbs-green" title="Données en direct du serveur">
+                  <Cloud className="h-3 w-3" />
+                  Live
+                </span>
+              ) : apiError ? (
+                <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-yellow/30 bg-sbs-yellow-light px-2 py-0.5 text-[10px] font-semibold text-sbs-yellow-dark" title={apiError}>
+                  <CloudOff className="h-3 w-3" />
+                  Hors-ligne
+                </span>
+              ) : null}
+              <Badge tone="blue">{results.length} trajet{results.length > 1 ? 's' : ''}</Badge>
+            </div>
           </div>
 
           {showFilters && <AdvancedFilters filters={filters} onChange={setFilters} />}
@@ -382,4 +431,65 @@ function EmptyResults({ onNavigate }: { onNavigate: (s: Screen, params?: Record<
       </div>
     </div>
   );
+}
+
+/* ===================================================================
+   Adaptateur ApiTrip → Trip (le type "local" attendu par les composants)
+   =================================================================== */
+
+const API_OPTION_TO_LOCAL: Record<ApiTrip['options'][number], TripOption> = {
+  BAGAGES: 'bagages',
+  ANIMAUX: 'animaux',
+  NON_FUMEUR: 'non-fumeur',
+  MUSIQUE: 'musique',
+  CLIMATISATION: 'climatisation',
+};
+
+const API_TRUST_TO_LOCAL: Record<ApiTrip['driver']['trustLevel'], 'basic' | 'verified' | 'premium'> = {
+  BASIC: 'basic',
+  VERIFIED: 'verified',
+  PREMIUM: 'premium',
+};
+
+function adaptApiTrip(a: ApiTrip): Trip {
+  const fromCity = findCity(a.fromCity) ?? { id: a.fromCity, name: a.fromCity, region: '' };
+  const toCity = findCity(a.toCity) ?? { id: a.toCity, name: a.toCity, region: '' };
+  return {
+    id: a.id,
+    driver: {
+      id: a.driver.id,
+      name: `${a.driver.firstName} ${a.driver.lastName}`,
+      rating: a.driver.ratingAvg ?? 5,
+      tripsCompleted: a.driver.tripsCompleted,
+      yearsActive: 0,
+      car: {
+        model: a.vehicle?.model ?? 'Véhicule',
+        color: a.vehicle?.color ?? '',
+        plate: maskPlate(a.vehicle?.plate ?? ''),
+      },
+      verified: a.driver.trustLevel !== 'BASIC',
+      trustLevel: API_TRUST_TO_LOCAL[a.driver.trustLevel],
+    },
+    from: fromCity,
+    to: toCity,
+    pickupPoint: a.pickupPoint,
+    dropoffPoint: a.dropoffPoint,
+    departureAt: a.departureAt,
+    durationMin: a.durationMin,
+    seatsTotal: a.seatsTotal,
+    seatsLeft: a.seatsLeft,
+    pricePerSeat: a.pricePerSeat,
+    options: a.options.map((o) => API_OPTION_TO_LOCAL[o]),
+    status: a.status === 'AVAILABLE' ? 'available'
+      : a.status === 'FULL' ? 'full'
+      : a.status === 'DEPARTED' ? 'departed'
+      : a.status === 'COMPLETED' ? 'completed'
+      : 'cancelled',
+  };
+}
+
+/** Masque une plaque type "LT 489 AA" en "LT 4** AA". */
+function maskPlate(plate: string): string {
+  if (plate.length < 5) return plate;
+  return plate.replace(/(\S+\s\d)\d+/, '$1**');
 }
