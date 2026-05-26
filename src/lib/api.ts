@@ -1,15 +1,18 @@
 /**
  * Client HTTP minimal pour parler à l'API SideBySide.
  *
- * Toutes les requêtes passent par /api/* qui est proxyfié par Vite vers
- * http://localhost:3000 (cf. vite.config.ts). En prod, on remplacera /api
- * par l'URL de production.
+ * - En dev : appelle /api/* qui est proxyfié par Vite vers localhost:3000
+ * - En prod : appelle l'URL configurée par VITE_API_URL (variable d'env Vercel)
+ * - Si VITE_API_URL n'est pas défini en prod, les appels échouent et le code
+ *   tombe gracieusement sur les données mock (cf. SearchTrips.tsx). C'est OK
+ *   pour une démo statique sur Vercel sans backend déployé.
  *
  * - Ajoute automatiquement le header Authorization si on a un accessToken stocké
  * - Gère les erreurs côté serveur en levant une ApiError typée
  */
 
-const BASE = '/api';
+// En dev → /api (proxy Vite). En prod → VITE_API_URL ou rien.
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
 
 const TOKEN_KEY = 'sbs:accessToken';
 const REFRESH_KEY = 'sbs:refreshToken';
