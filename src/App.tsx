@@ -3,6 +3,7 @@ import type { Screen } from '@/lib/types';
 import { LandingPage } from '@/screens/LandingPage';
 import { SearchTrips } from '@/screens/SearchTrips';
 import { Onboarding } from '@/screens/Onboarding';
+import { Login } from '@/screens/Login';
 import { ComingSoon } from '@/screens/ComingSoon';
 import { TripDetail } from '@/screens/TripDetail';
 import { Booking } from '@/screens/Booking';
@@ -34,6 +35,9 @@ function App() {
     case 'auth':
     case 'role-pick':
       return <Onboarding onNavigate={navigate} />;
+
+    case 'login':
+      return <Login onNavigate={navigate} />;
 
     case 'trip-detail':
       return <TripDetail tripId={route.params.tripId ?? 't1'} onNavigate={navigate} />;

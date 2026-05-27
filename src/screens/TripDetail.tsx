@@ -9,7 +9,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { SosButton } from '@/components/sos/SosButton';
+import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { findTrip } from '@/data/trips';
+import { useAuth, setPendingAction } from '@/hooks/useAuth';
 import { cn, formatDate, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import type { Screen, TripOption } from '@/lib/types';
 
@@ -29,6 +31,18 @@ const OPTION_LABELS: Record<TripOption, { icon: typeof Briefcase; label: string 
 export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
   const trip = findTrip(tripId);
   const [seats, setSeats] = useState(1);
+  const [showAuthGate, setShowAuthGate] = useState(false);
+  const { isAuthenticated } = useAuth();
+
+  function handleReserve() {
+    if (isAuthenticated) {
+      onNavigate('booking', { tripId, seats: seats.toString() });
+      return;
+    }
+    // Pas connecté → mémoriser l'intention puis ouvrir le modal d'auth
+    setPendingAction({ type: 'booking', tripId, seats });
+    setShowAuthGate(true);
+  }
 
   if (!trip) {
     return (
@@ -50,22 +64,26 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
     <div className="min-h-screen bg-sbs-cream pb-32">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-sbs-border bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3 sm:px-6">
-          <button
-            type="button"
-            onClick={() => onNavigate('search')}
-            className="grid h-10 w-10 place-items-center rounded-pill border border-sbs-border text-sbs-dark transition-colors hover:bg-sbs-border-soft"
-            aria-label="Retour"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-2">
-            <SbsLogo size="sm" />
-            <div className="leading-tight">
-              <div className="font-display text-base font-extrabold tracking-tight">Détail du trajet</div>
-              <div className="text-[10px] text-sbs-muted">{formatDate(departure)} · {formatTime(departure)}</div>
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => onNavigate('search')}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-pill border border-sbs-border text-sbs-dark transition-colors hover:bg-sbs-border-soft"
+              aria-label="Retour"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <SbsLogo size="sm" />
+              <div className="leading-tight min-w-0">
+                <div className="font-display text-base font-extrabold tracking-tight truncate">Détail du trajet</div>
+                <div className="text-[10px] text-sbs-muted truncate">{formatDate(departure)} · {formatTime(departure)}</div>
+              </div>
             </div>
           </div>
+          {/* SOS dans le header (mode "header") — n'écrase plus le CTA Réserver en bas */}
+          <SosButton variant="header" />
         </div>
       </header>
 
@@ -266,7 +284,7 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
           <Button
             variant="primary"
             size="lg"
-            onClick={() => onNavigate('booking', { tripId, seats: seats.toString() })}
+            onClick={handleReserve}
             className={cn('rounded-pill', 'min-w-[180px]')}
           >
             Réserver
@@ -275,8 +293,15 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
         </div>
       </div>
 
-      {/* Bouton SOS flottant — visible pendant tout le détail trajet */}
-      <SosButton className="bottom-24" />
+      {/* Modal d'auth : s'affiche si l'utilisateur n'est pas connecté */}
+      {showAuthGate && (
+        <AuthGateModal
+          action="réserver ce trajet"
+          onClose={() => setShowAuthGate(false)}
+          onLogin={() => { setShowAuthGate(false); onNavigate('login'); }}
+          onRegister={() => { setShowAuthGate(false); onNavigate('onboarding'); }}
+        />
+      )}
     </div>
   );
 }

@@ -65,13 +65,13 @@ export function MessageThread({ conversation, onBack, onNavigate }: MessageThrea
           <button
             type="button"
             onClick={() => onNavigate('trip-detail')}
-            className="flex flex-1 items-center gap-3 text-left"
+            className="flex flex-1 items-center gap-3 text-left min-w-0"
             aria-label="Voir détails du trajet"
           >
             <Avatar name={conversation.otherUserName} size="md" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="font-display text-sm font-extrabold text-sbs-dark">
+                <span className="font-display text-sm font-extrabold text-sbs-dark truncate">
                   {conversation.otherUserName}
                 </span>
                 {conversation.otherTrustLevel && <TrustBadge level={conversation.otherTrustLevel} size="sm" showLabel={false} />}
@@ -79,6 +79,8 @@ export function MessageThread({ conversation, onBack, onNavigate }: MessageThrea
               <div className="text-[11px] text-sbs-muted truncate">{conversation.tripSummary}</div>
             </div>
           </button>
+          {/* SOS dans le header */}
+          <SosButton variant="header" />
         </div>
         {/* Bandeau sécurité */}
         <div className="border-t border-sbs-blue/15 bg-sbs-blue-light/30 px-4 py-2 text-center text-[10px] font-semibold text-sbs-blue sm:px-6">
@@ -152,8 +154,6 @@ export function MessageThread({ conversation, onBack, onNavigate }: MessageThrea
         </div>
       </div>
 
-      {/* Bouton SOS flottant — accessible pendant la conversation */}
-      <SosButton className="bottom-24 sm:bottom-24" />
     </div>
   );
 }

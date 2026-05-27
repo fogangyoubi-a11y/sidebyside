@@ -23,10 +23,12 @@ import {
   type OtpState,
   type TrustLevel,
 } from '@/lib/security';
+import { consumePendingAction } from '@/hooks/useAuth';
+import { setTokens } from '@/lib/api';
 import type { Screen, Role } from '@/lib/types';
 
 interface OnboardingProps {
-  onNavigate: (s: Screen) => void;
+  onNavigate: (s: Screen, params?: Record<string, string>) => void;
 }
 
 type Step =
@@ -641,9 +643,35 @@ function KycDriverStep({ form, onUpdate, onBack, onNext }: {
 
 /* ----------------------------- 9. DONE ----------------------------- */
 
-function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Screen) => void }) {
+function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
   // À ce stade, identityVerified est en cours — donc niveau Basic, avec annonce "Vérifié sous 24h"
   const initialLevel: TrustLevel = 'basic';
+
+  // Simulation locale d'une session (front-only, le backend prendra le relais
+  // quand on branchera vraiment /auth/register). On stocke un faux token + un
+  // user pour que `useAuth` retourne isAuthenticated=true.
+  // useEffect non utilisé ici car appelé une seule fois au montage volontairement.
+  if (typeof window !== 'undefined' && !localStorage.getItem('sbs:user')) {
+    const fakeUser = {
+      id: 'local-' + Date.now(),
+      phone: '+237' + form.phoneLocal.replace(/\D/g, ''),
+      firstName: form.firstName,
+      lastName: form.lastName,
+      role: (form.role ?? 'PASSENGER').toUpperCase() as 'PASSENGER' | 'DRIVER',
+      trustLevel: 'BASIC' as const,
+    };
+    localStorage.setItem('sbs:user', JSON.stringify(fakeUser));
+    // Faux token — sera remplacé par un vrai JWT quand le backend sera branché
+    setTokens('local-access-' + Date.now(), 'local-refresh-' + Date.now());
+  }
+
+  // Si l'utilisateur essayait de réserver avant l'inscription, on reprend là où il en était
+  const pending = consumePendingAction();
+  const primaryAction = pending?.type === 'booking'
+    ? { label: 'Finaliser ma réservation', screen: 'booking' as Screen, params: { tripId: pending.tripId, seats: String(pending.seats) } }
+    : form.role === 'passenger'
+      ? { label: 'Chercher mon premier trajet', screen: 'search' as Screen, params: undefined }
+      : { label: 'Publier mon premier trajet', screen: 'publish-trip' as Screen, params: undefined };
 
   return (
     <StepWrapper>
@@ -711,19 +739,18 @@ function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Scree
         </div>
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          {form.role === 'passenger' ? (
-            <Button variant="primary" size="lg" onClick={() => onNavigate('search')} className="rounded-pill">
-              <MapPin className="h-4 w-4" />
-              Chercher mon premier trajet
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button variant="primary" size="lg" onClick={() => onNavigate('publish-trip')} className="rounded-pill">
-              <Car className="h-4 w-4" />
-              Publier mon premier trajet
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => onNavigate(primaryAction.screen, primaryAction.params)}
+            className="rounded-pill"
+          >
+            {primaryAction.screen === 'booking' ? <ShieldCheck className="h-4 w-4" /> :
+             primaryAction.screen === 'search' ? <MapPin className="h-4 w-4" /> :
+             <Car className="h-4 w-4" />}
+            {primaryAction.label}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="lg" onClick={() => onNavigate('landing')}>
             Aller à l'accueil
           </Button>

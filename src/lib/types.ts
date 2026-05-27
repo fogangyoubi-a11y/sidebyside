@@ -8,6 +8,7 @@ export type Screen =
   | 'landing'
   | 'onboarding'
   | 'auth'
+  | 'login'
   | 'role-pick'
   | 'home-passenger'
   | 'home-driver'
