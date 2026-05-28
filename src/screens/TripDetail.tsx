@@ -10,8 +10,10 @@ import { SbsLogo } from '@/components/ui/SbsLogo';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { SosButton } from '@/components/sos/SosButton';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { findTrip } from '@/data/trips';
 import { useAuth, setPendingAction } from '@/hooks/useAuth';
+import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL } from '@/lib/category';
 import { cn, formatDate, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import type { Screen, TripOption } from '@/lib/types';
 
@@ -59,6 +61,8 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
   const arrival = new Date(departure.getTime() + trip.durationMin * 60 * 1000);
   const totalPrice = trip.pricePerSeat * seats;
   const trustLevel = trip.driver.trustLevel ?? 'basic';
+  const category = computeTripCategory(trip.driver.car.type, trip.driver.car.year, trip.options);
+  const categoryInfo = CATEGORY_INFO[category];
 
   return (
     <div className="min-h-screen bg-sbs-cream pb-32">
@@ -174,7 +178,29 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
               <div className="font-bold text-sbs-dark">
                 {trip.driver.car.model} <span className="text-sbs-muted">· {trip.driver.car.color}</span>
               </div>
-              <div className="font-mono text-[11px] text-sbs-muted">Plaque : {trip.driver.car.plate}</div>
+              <div className="text-[11px] text-sbs-muted">
+                {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year} · Plaque <span className="font-mono">{trip.driver.car.plate}</span>
+              </div>
+            </div>
+            <CategoryBadge category={category} size="sm" />
+          </div>
+        </section>
+
+        {/* Carte catégorie : explication de ce que veut dire "Premium VIP" */}
+        <section className={cn(
+          'mt-4 rounded-card-lg border p-4 sm:p-5',
+          categoryInfo.bgClass,
+          categoryInfo.borderClass,
+        )}>
+          <div className="flex items-start gap-3">
+            <span className="text-3xl" aria-hidden>{categoryInfo.emoji}</span>
+            <div className="flex-1">
+              <div className={cn('font-display text-base font-extrabold', categoryInfo.textClass)}>
+                Niveau {categoryInfo.label}
+              </div>
+              <div className="mt-0.5 text-xs leading-relaxed text-sbs-dark/80">
+                {categoryInfo.tagline}
+              </div>
             </div>
           </div>
         </section>

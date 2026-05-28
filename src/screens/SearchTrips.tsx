@@ -5,12 +5,14 @@ import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { CITIES, findCity } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
 import { ApiClient, type ApiTrip } from '@/lib/api';
+import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL } from '@/lib/category';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
-import type { Screen, SearchFilters, Trip, TripOption } from '@/lib/types';
+import type { Screen, SearchFilters, Trip, TripOption, TripCategory } from '@/lib/types';
 
 interface SearchTripsProps {
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
@@ -35,6 +37,7 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
     passengers: 1,
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<TripCategory | 'all'>('all');
   const [apiTrips, setApiTrips] = useState<Trip[] | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -65,8 +68,26 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
 
   // Fallback : si l'API n'a rien renvoyé, on affiche les mocks
   const mockResults = useMemo(() => searchTrips(filters), [filters]);
-  const results = apiTrips ?? mockResults;
+  const allResults = apiTrips ?? mockResults;
   const isLive = apiTrips !== null;
+
+  // Filtrage par catégorie
+  const results = useMemo(() => {
+    if (categoryFilter === 'all') return allResults;
+    return allResults.filter((t) =>
+      computeTripCategory(t.driver.car.type, t.driver.car.year, t.options) === categoryFilter,
+    );
+  }, [allResults, categoryFilter]);
+
+  // Compteurs par catégorie (pour afficher dans les pills "Confort (3)")
+  const countsByCategory = useMemo(() => {
+    const counts: Record<TripCategory, number> = { economique: 0, confort: 0, premium: 0 };
+    for (const t of allResults) {
+      const cat = computeTripCategory(t.driver.car.type, t.driver.car.year, t.options);
+      counts[cat]++;
+    }
+    return counts;
+  }, [allResults]);
 
   function swapCities() {
     setFilters((f) => ({ ...f, fromId: f.toId, toId: f.fromId }));
@@ -176,6 +197,39 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
           </div>
 
           {showFilters && <AdvancedFilters filters={filters} onChange={setFilters} />}
+        </section>
+
+        {/* Filtre catégorie — pills Économique / Confort / Premium VIP */}
+        <section className="mt-4 -mx-1 flex items-center gap-2 overflow-x-auto scrollbar-hide px-1">
+          {(['all', 'premium', 'confort', 'economique'] as const).map((cat) => {
+            const active = categoryFilter === cat;
+            const info = cat === 'all' ? null : CATEGORY_INFO[cat];
+            const count = cat === 'all' ? allResults.length : countsByCategory[cat];
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategoryFilter(cat)}
+                className={cn(
+                  'shrink-0 inline-flex items-center gap-1.5 rounded-pill border-2 px-3 py-1.5 text-xs font-bold transition-all',
+                  active
+                    ? info
+                      ? cn(info.bgClass, info.textClass, info.borderClass, 'shadow-soft scale-[1.02]')
+                      : 'bg-sbs-blue text-white border-sbs-blue shadow-soft scale-[1.02]'
+                    : 'border-sbs-border bg-white text-sbs-muted hover:border-sbs-blue/40 hover:text-sbs-dark',
+                )}
+              >
+                {info ? <span aria-hidden>{info.emoji}</span> : '✨'}
+                {info ? info.label : 'Tous niveaux'}
+                <span className={cn(
+                  'inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-extrabold',
+                  active ? 'bg-white/30 text-current' : 'bg-sbs-border-soft text-sbs-muted',
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </section>
 
         {/* Résultats */}
@@ -314,6 +368,7 @@ function AdvancedFilters({
 function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: number; onSelect: () => void }) {
   const departure = new Date(trip.departureAt);
   const arrival = new Date(departure.getTime() + trip.durationMin * 60 * 1000);
+  const category = computeTripCategory(trip.driver.car.type, trip.driver.car.year, trip.options);
 
   return (
     <li>
@@ -322,6 +377,14 @@ function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: numb
         onClick={onSelect}
         className="w-full rounded-card-lg border border-sbs-border bg-white p-4 text-left shadow-soft transition-all hover:border-sbs-blue/40 hover:shadow-card sm:p-5"
       >
+        {/* Badge catégorie en haut */}
+        <div className="mb-3 flex items-center justify-between">
+          <CategoryBadge category={category} size="md" />
+          <span className="text-[11px] text-sbs-muted">
+            {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year}
+          </span>
+        </div>
+
         <div className="flex gap-4">
           {/* Timeline */}
           <div className="flex flex-col items-center gap-1 pt-1">
@@ -469,6 +532,9 @@ function adaptApiTrip(a: ApiTrip): Trip {
         model: a.vehicle?.model ?? 'Véhicule',
         color: a.vehicle?.color ?? '',
         plate: maskPlate(a.vehicle?.plate ?? ''),
+        // L'API ne renvoie pas encore ces champs — fallback raisonnable
+        type: 'berline',
+        year: new Date().getFullYear() - 3,
       },
       verified: a.driver.trustLevel !== 'BASIC',
       trustLevel: API_TRUST_TO_LOCAL[a.driver.trustLevel],

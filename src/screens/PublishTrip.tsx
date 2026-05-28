@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Input } from '@/components/ui/Input';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { CITIES } from '@/data/cities';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
 import { SBS_COMMISSION_RATE } from '@/lib/booking';
-import type { Screen, TripOption } from '@/lib/types';
+import { computeTripCategory, VEHICLE_TYPE_LABEL } from '@/lib/category';
+import type { Screen, TripOption, VehicleType } from '@/lib/types';
 
 interface PublishTripProps {
   onNavigate: (s: Screen) => void;
@@ -28,6 +30,8 @@ interface FormState {
   seats: number;
   pricePerSeat: number;  // F CFA
   options: TripOption[];
+  vehicleType: VehicleType;
+  vehicleYear: number;
 }
 
 const OPTION_DEFS: Array<{ id: TripOption; icon: typeof Briefcase; label: string }> = [
@@ -48,7 +52,11 @@ const initialForm: FormState = {
   seats: 3,
   pricePerSeat: 3500,
   options: ['climatisation', 'non-fumeur'],
+  vehicleType: 'berline',
+  vehicleYear: new Date().getFullYear() - 3,
 };
+
+const VEHICLE_TYPES: VehicleType[] = ['berline', 'citadine', 'suv', '4x4', 'monospace'];
 
 export function PublishTrip({ onNavigate }: PublishTripProps) {
   const [form, setForm] = useState<FormState>(initialForm);
@@ -192,6 +200,62 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                 <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
               </div>
               <p className="mt-1 text-[11px] text-sbs-muted">entre 1 000 et 20 000 F CFA</p>
+            </div>
+          </div>
+        </Section>
+
+        {/* Véhicule */}
+        <Section title="🚗 Votre véhicule">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-sbs-dark">Type de véhicule</label>
+              <div className="relative mt-1.5 flex items-center rounded-btn border border-sbs-border bg-white focus-within:border-sbs-blue focus-within:ring-2 focus-within:ring-sbs-blue/20">
+                <span className="grid h-11 w-11 shrink-0 place-items-center text-sbs-muted">
+                  <Car className="h-4 w-4" />
+                </span>
+                <select
+                  value={form.vehicleType}
+                  onChange={(e) => update({ vehicleType: e.target.value as VehicleType })}
+                  className="h-11 flex-1 appearance-none bg-transparent pr-4 text-sm font-semibold text-sbs-dark focus:outline-none"
+                >
+                  {VEHICLE_TYPES.map((t) => (
+                    <option key={t} value={t}>{VEHICLE_TYPE_LABEL[t]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-sbs-dark">Année du véhicule</label>
+              <div className="mt-1.5 flex items-center rounded-btn border border-sbs-border bg-white">
+                <span className="grid h-11 w-11 shrink-0 place-items-center text-sbs-muted">
+                  <Calendar className="h-4 w-4" />
+                </span>
+                <input
+                  type="number"
+                  min={1990}
+                  max={new Date().getFullYear() + 1}
+                  step={1}
+                  value={form.vehicleYear}
+                  onChange={(e) => update({ vehicleYear: Number(e.target.value) || new Date().getFullYear() })}
+                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Aperçu LIVE de la catégorie selon ce que le chauffeur déclare */}
+          <div className="mt-4 rounded-card border border-sbs-blue/15 bg-sbs-blue-light/30 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[11px] text-sbs-blue">
+                <div className="font-semibold">Avec ces infos, votre trajet sera classé :</div>
+                <div className="mt-0.5 text-[10px] text-sbs-muted">
+                  Catégorie calculée automatiquement selon le type, l'année et les options
+                </div>
+              </div>
+              <CategoryBadge
+                category={computeTripCategory(form.vehicleType, form.vehicleYear, form.options)}
+                size="lg"
+              />
             </div>
           </div>
         </Section>

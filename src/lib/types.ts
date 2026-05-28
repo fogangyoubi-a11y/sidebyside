@@ -28,6 +28,12 @@ export type TripStatus = 'available' | 'full' | 'departed' | 'completed' | 'canc
 
 export type TripOption = 'bagages' | 'animaux' | 'non-fumeur' | 'musique' | 'climatisation';
 
+/** Type physique de véhicule — utilisé pour la catégorisation auto. */
+export type VehicleType = 'berline' | 'citadine' | 'suv' | '4x4' | 'monospace';
+
+/** Niveau de confort d'un trajet — visible dans la liste de recherche et le filtre. */
+export type TripCategory = 'economique' | 'confort' | 'premium';
+
 export interface City {
   id: string;
   name: string;
@@ -45,6 +51,8 @@ export interface DriverProfile {
     model: string;
     color: string;
     plate: string;         // masquée partiellement
+    type: VehicleType;
+    year: number;          // ex. 2022
   };
   verified: boolean;
   trustLevel?: 'basic' | 'verified' | 'premium';
