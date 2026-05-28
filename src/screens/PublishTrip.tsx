@@ -15,7 +15,7 @@ import { CITIES } from '@/data/cities';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
 import { SBS_COMMISSION_RATE } from '@/lib/booking';
-import { computeTripCategory, VEHICLE_TYPE_LABEL } from '@/lib/category';
+import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, CATEGORY_INFO } from '@/lib/category';
 import type { Screen, TripOption, VehicleType } from '@/lib/types';
 
 interface PublishTripProps {
@@ -72,7 +72,23 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   const [published, setPublished] = useState(false);
 
   function update(patch: Partial<FormState>) {
-    setForm((f) => ({ ...f, ...patch }));
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      // Si on change le véhicule ou les options, la catégorie peut changer
+      // → on ajuste le prix s'il est hors de la nouvelle fourchette
+      const categoryChanged =
+        patch.vehicleType !== undefined ||
+        patch.vehicleYear !== undefined ||
+        patch.options !== undefined;
+      if (categoryChanged) {
+        const newCat = computeTripCategory(next.vehicleType, next.vehicleYear, next.options);
+        const newRange = PRICE_RANGE_BY_CATEGORY[newCat];
+        if (next.pricePerSeat < newRange.min || next.pricePerSeat > newRange.max) {
+          next.pricePerSeat = newRange.suggested;
+        }
+      }
+      return next;
+    });
   }
 
   function toggleOption(opt: TripOption) {
@@ -89,14 +105,20 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   const driverEarningPerSeat = form.pricePerSeat - commission;
   const driverTotalEarning = driverEarningPerSeat * form.seats;
 
+  // Catégorie calculée d'après le véhicule + options + la fourchette de prix associée
+  const category = computeTripCategory(form.vehicleType, form.vehicleYear, form.options);
+  const priceRange = PRICE_RANGE_BY_CATEGORY[category];
+  const priceValid = isPriceValidForCategory(form.pricePerSeat, category);
+
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(form.date);
   const valid =
     form.fromId !== form.toId &&
-    form.date.length === 10 &&
+    validDate &&
     /^\d{2}:\d{2}$/.test(form.time) &&
     form.pickupPoint.trim().length >= 5 &&
     form.dropoffPoint.trim().length >= 5 &&
     form.seats >= 1 && form.seats <= 4 &&
-    form.pricePerSeat >= 1000 && form.pricePerSeat <= 20000;
+    priceValid;
 
   if (published) return <PublishSuccess form={form} fromCity={fromCity} toCity={toCity} onNavigate={onNavigate} />;
 
@@ -189,23 +211,46 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               <p className="mt-1 text-[11px] text-sbs-muted">1 à 4 passagers</p>
             </div>
             <div>
-              <label className="text-xs font-semibold text-sbs-dark">Prix par place (F CFA)</label>
-              <div className="mt-1.5 flex items-center rounded-btn border border-sbs-border bg-white">
+              <label className="text-xs font-semibold text-sbs-dark">
+                Prix par place (F CFA)
+              </label>
+              <div className={cn(
+                'mt-1.5 flex items-center rounded-btn border bg-white transition-colors',
+                priceValid
+                  ? 'border-sbs-border focus-within:border-sbs-blue focus-within:ring-2 focus-within:ring-sbs-blue/20'
+                  : 'border-sbs-red focus-within:ring-2 focus-within:ring-sbs-red/20',
+              )}>
                 <span className="grid h-11 w-11 place-items-center text-sbs-muted">
                   <Coins className="h-4 w-4" />
                 </span>
                 <input
                   type="number"
-                  min={1000}
-                  max={20000}
-                  step={500}
+                  min={priceRange.min}
+                  max={priceRange.max}
+                  step={100}
                   value={form.pricePerSeat}
                   onChange={(e) => update({ pricePerSeat: Number(e.target.value) || 0 })}
                   className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
                 />
                 <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
               </div>
-              <p className="mt-1 text-[11px] text-sbs-muted">entre 1 000 et 20 000 F CFA</p>
+              <p className={cn(
+                'mt-1 text-[11px]',
+                priceValid ? 'text-sbs-muted' : 'font-semibold text-sbs-red',
+              )}>
+                {priceValid
+                  ? `Fourchette ${CATEGORY_INFO[category].label} : ${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA`
+                  : `Hors fourchette ${CATEGORY_INFO[category].label} (${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA)`}
+              </p>
+              {!priceValid && (
+                <button
+                  type="button"
+                  onClick={() => update({ pricePerSeat: priceRange.suggested })}
+                  className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                >
+                  ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
+                </button>
+              )}
             </div>
           </div>
         </Section>
@@ -249,19 +294,27 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
             </div>
           </div>
 
-          {/* Aperçu LIVE de la catégorie selon ce que le chauffeur déclare */}
+          {/* Aperçu LIVE de la catégorie + fourchette de prix associée */}
           <div className="mt-4 rounded-card border border-sbs-blue/15 bg-sbs-blue-light/30 p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[11px] text-sbs-blue">
-                <div className="font-semibold">Avec ces infos, votre trajet sera classé :</div>
+                <div className="font-semibold">Avec ces infos, votre trajet est classé :</div>
                 <div className="mt-0.5 text-[10px] text-sbs-muted">
-                  Catégorie calculée automatiquement selon le type, l'année et les options
+                  Catégorie calculée automatiquement
                 </div>
               </div>
-              <CategoryBadge
-                category={computeTripCategory(form.vehicleType, form.vehicleYear, form.options)}
-                size="lg"
-              />
+              <CategoryBadge category={category} size="lg" />
+            </div>
+            <div className="mt-3 rounded-card bg-white px-3 py-2 text-[11px]">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-sbs-dark">Fourchette de prix autorisée :</span>
+                <span className="font-mono font-bold text-sbs-blue">
+                  {priceRange.min.toLocaleString('fr-FR')} – {priceRange.max.toLocaleString('fr-FR')} F CFA
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] text-sbs-muted">
+                💡 Pour facturer plus, équipez-vous d'un SUV/4×4 récent avec climatisation (catégorie supérieure).
+              </p>
             </div>
           </div>
         </Section>

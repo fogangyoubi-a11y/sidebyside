@@ -85,3 +85,32 @@ export const VEHICLE_TYPE_LABEL: Record<VehicleType, string> = {
 
 /** Ordre d'affichage du plus haut au plus bas niveau de confort. */
 export const CATEGORY_ORDER: TripCategory[] = ['premium', 'confort', 'economique'];
+
+/* ============================================================
+   Fourchettes de prix par catégorie (en F CFA, axe Douala-Bafoussam)
+   ============================================================
+   Règle métier : un chauffeur ne peut pas demander un prix hors de la
+   fourchette de sa catégorie. Cela garantit la confiance du passager :
+     "Si je paie le prix Premium, j'ai vraiment du Premium"
+     "Si je vois 3 000 F, c'est forcément de l'Économique honnête"
+
+   Si un chauffeur veut facturer plus, il doit améliorer sa voiture
+   ou ses options pour passer à la catégorie supérieure.
+*/
+export interface PriceRange {
+  min: number;
+  max: number;
+  suggested: number;
+}
+
+export const PRICE_RANGE_BY_CATEGORY: Record<TripCategory, PriceRange> = {
+  economique: { min: 2_500, max: 4_000, suggested: 3_000 },
+  confort:    { min: 3_500, max: 5_500, suggested: 4_500 },
+  premium:    { min: 5_000, max: 8_500, suggested: 6_500 },
+};
+
+/** Vérifie qu'un prix est cohérent avec sa catégorie. */
+export function isPriceValidForCategory(price: number, category: TripCategory): boolean {
+  const range = PRICE_RANGE_BY_CATEGORY[category];
+  return price >= range.min && price <= range.max;
+}
