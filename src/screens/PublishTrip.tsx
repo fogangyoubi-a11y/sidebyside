@@ -219,13 +219,17 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                   <Calendar className="h-4 w-4" />
                 </span>
                 <input
-                  type="number"
-                  min={1990}
-                  max={new Date().getFullYear() + 1}
-                  step={1}
-                  value={form.vehicleYear}
-                  onChange={(e) => update({ vehicleYear: Number(e.target.value) || new Date().getFullYear() })}
-                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder={String(new Date().getFullYear() - 3)}
+                  value={form.vehicleYear > 0 ? String(form.vehicleYear) : ''}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    update({ vehicleYear: digits === '' ? 0 : parseInt(digits, 10) });
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark placeholder:font-normal placeholder:text-sbs-muted/60 focus:outline-none"
                 />
               </div>
             </div>
@@ -336,13 +340,18 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                   <Coins className="h-4 w-4" />
                 </span>
                 <input
-                  type="number"
-                  min={ABSOLUTE_MIN_PRICE}
-                  max={priceRange.max}
-                  step={100}
-                  value={form.pricePerSeat}
-                  onChange={(e) => update({ pricePerSeat: Number(e.target.value) || 0 })}
-                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder={priceRange.suggested.toString()}
+                  value={form.pricePerSeat > 0 ? String(form.pricePerSeat) : ''}
+                  onChange={(e) => {
+                    // On accepte uniquement les chiffres et on cap à 5 (max 99 999 F)
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 5);
+                    update({ pricePerSeat: digits === '' ? 0 : parseInt(digits, 10) });
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark placeholder:font-normal placeholder:text-sbs-muted/60 focus:outline-none"
                 />
                 <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
               </div>
