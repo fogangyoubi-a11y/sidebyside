@@ -190,71 +190,6 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
           </div>
         </Section>
 
-        {/* Places & prix */}
-        <Section title="👥 Places & prix par passager">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold text-sbs-dark">Nombre de places</label>
-              <div className="mt-1.5 inline-flex w-full items-center justify-between rounded-btn border border-sbs-border bg-white">
-                <button
-                  type="button"
-                  onClick={() => update({ seats: Math.max(1, form.seats - 1) })}
-                  className="grid h-11 w-11 place-items-center text-sbs-dark transition-colors hover:bg-sbs-border-soft"
-                >−</button>
-                <span className="font-display text-lg font-extrabold text-sbs-dark">{form.seats}</span>
-                <button
-                  type="button"
-                  onClick={() => update({ seats: Math.min(4, form.seats + 1) })}
-                  className="grid h-11 w-11 place-items-center text-sbs-dark transition-colors hover:bg-sbs-border-soft"
-                >+</button>
-              </div>
-              <p className="mt-1 text-[11px] text-sbs-muted">1 à 4 passagers</p>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-sbs-dark">
-                Prix par place (F CFA)
-              </label>
-              <div className={cn(
-                'mt-1.5 flex items-center rounded-btn border bg-white transition-colors',
-                priceValid
-                  ? 'border-sbs-border focus-within:border-sbs-blue focus-within:ring-2 focus-within:ring-sbs-blue/20'
-                  : 'border-sbs-red focus-within:ring-2 focus-within:ring-sbs-red/20',
-              )}>
-                <span className="grid h-11 w-11 place-items-center text-sbs-muted">
-                  <Coins className="h-4 w-4" />
-                </span>
-                <input
-                  type="number"
-                  min={priceRange.min}
-                  max={priceRange.max}
-                  step={100}
-                  value={form.pricePerSeat}
-                  onChange={(e) => update({ pricePerSeat: Number(e.target.value) || 0 })}
-                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
-                />
-                <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
-              </div>
-              <p className={cn(
-                'mt-1 text-[11px]',
-                priceValid ? 'text-sbs-muted' : 'font-semibold text-sbs-red',
-              )}>
-                {priceValid
-                  ? `Fourchette ${CATEGORY_INFO[category].label} : ${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA`
-                  : `Hors fourchette ${CATEGORY_INFO[category].label} (${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA)`}
-              </p>
-              {!priceValid && (
-                <button
-                  type="button"
-                  onClick={() => update({ pricePerSeat: priceRange.suggested })}
-                  className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
-                >
-                  ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
-                </button>
-              )}
-            </div>
-          </div>
-        </Section>
-
         {/* Véhicule */}
         <Section title="🚗 Votre véhicule">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -341,6 +276,82 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                 </button>
               );
             })}
+          </div>
+          <p className="mt-3 text-[11px] text-sbs-muted">
+            💡 La climatisation peut faire passer votre trajet en catégorie supérieure.
+          </p>
+        </Section>
+
+        {/* Places & prix — APRÈS le véhicule pour que le chauffeur connaisse déjà sa catégorie */}
+        <Section title="👥 Places & prix par passager">
+          {/* Rappel visuel de la catégorie pour préparer le chauffeur à la fourchette */}
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-card bg-sbs-cream px-3 py-2">
+            <div className="text-[11px] text-sbs-muted">
+              Votre trajet est classé :
+            </div>
+            <CategoryBadge category={category} size="md" />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-sbs-dark">Nombre de places</label>
+              <div className="mt-1.5 inline-flex w-full items-center justify-between rounded-btn border border-sbs-border bg-white">
+                <button
+                  type="button"
+                  onClick={() => update({ seats: Math.max(1, form.seats - 1) })}
+                  className="grid h-11 w-11 place-items-center text-sbs-dark transition-colors hover:bg-sbs-border-soft"
+                >−</button>
+                <span className="font-display text-lg font-extrabold text-sbs-dark">{form.seats}</span>
+                <button
+                  type="button"
+                  onClick={() => update({ seats: Math.min(4, form.seats + 1) })}
+                  className="grid h-11 w-11 place-items-center text-sbs-dark transition-colors hover:bg-sbs-border-soft"
+                >+</button>
+              </div>
+              <p className="mt-1 text-[11px] text-sbs-muted">1 à 4 passagers</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-sbs-dark">
+                Prix par place (F CFA)
+              </label>
+              <div className={cn(
+                'mt-1.5 flex items-center rounded-btn border bg-white transition-colors',
+                priceValid
+                  ? 'border-sbs-border focus-within:border-sbs-blue focus-within:ring-2 focus-within:ring-sbs-blue/20'
+                  : 'border-sbs-red focus-within:ring-2 focus-within:ring-sbs-red/20',
+              )}>
+                <span className="grid h-11 w-11 place-items-center text-sbs-muted">
+                  <Coins className="h-4 w-4" />
+                </span>
+                <input
+                  type="number"
+                  min={priceRange.min}
+                  max={priceRange.max}
+                  step={100}
+                  value={form.pricePerSeat}
+                  onChange={(e) => update({ pricePerSeat: Number(e.target.value) || 0 })}
+                  className="h-11 flex-1 bg-transparent text-sm font-bold text-sbs-dark focus:outline-none"
+                />
+                <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
+              </div>
+              <p className={cn(
+                'mt-1 text-[11px]',
+                priceValid ? 'text-sbs-muted' : 'font-semibold text-sbs-red',
+              )}>
+                {priceValid
+                  ? `✓ Fourchette ${CATEGORY_INFO[category].label} : ${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA`
+                  : `Hors fourchette ${CATEGORY_INFO[category].label} (${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA)`}
+              </p>
+              {!priceValid && (
+                <button
+                  type="button"
+                  onClick={() => update({ pricePerSeat: priceRange.suggested })}
+                  className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                >
+                  ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
+                </button>
+              )}
+            </div>
           </div>
         </Section>
 
