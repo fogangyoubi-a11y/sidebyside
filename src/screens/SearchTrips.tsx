@@ -14,6 +14,9 @@ import type { Screen, SearchFilters, Trip, TripOption } from '@/lib/types';
 
 interface SearchTripsProps {
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
+  /** Filtres initiaux passés par navigation (ex. depuis la landing). */
+  initialFromId?: string;
+  initialToId?: string;
 }
 
 const optionIcons: Record<TripOption, { icon: typeof Briefcase; label: string }> = {
@@ -24,10 +27,10 @@ const optionIcons: Record<TripOption, { icon: typeof Briefcase; label: string }>
   climatisation: { icon: Wind,      label: 'Clim.' },
 };
 
-export function SearchTrips({ onNavigate }: SearchTripsProps) {
+export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTripsProps) {
   const [filters, setFilters] = useState<SearchFilters>({
-    fromId: 'douala',
-    toId: 'bafoussam',
+    fromId: initialFromId ?? 'douala',
+    toId: initialToId ?? 'bafoussam',
     date: todayISO(),
     passengers: 1,
   });

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
 
 interface LandingPageProps {
-  onNavigate: (s: Screen) => void;
+  onNavigate: (s: Screen, params?: Record<string, string>) => void;
 }
 
 export function LandingPage({ onNavigate }: LandingPageProps) {
@@ -17,7 +17,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <Hero onNavigate={onNavigate} />
       <TrustBar />
       <HowItWorks />
-      <RoutesSection />
+      <RoutesSection onNavigate={onNavigate} />
       <DriverCTA onNavigate={onNavigate} />
       <Testimonials />
       <FinalCTA onNavigate={onNavigate} />
@@ -163,13 +163,15 @@ function Hero({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         </div>
 
         {/* Mockup app */}
-        <HeroMockup />
+        <HeroMockup onNavigate={onNavigate} />
       </div>
     </section>
   );
 }
 
-function HeroMockup() {
+function HeroMockup({ onNavigate }: { onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
+  /** Tous les "trajets" du mockup ouvrent la recherche Douala→Bafoussam. */
+  const openSearch = () => onNavigate('search', { from: 'douala', to: 'bafoussam' });
   return (
     <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
       <div className="relative aspect-[9/16] overflow-hidden rounded-card-lg bg-white shadow-card-hover">
@@ -182,8 +184,12 @@ function HeroMockup() {
           <span className="text-[10px] text-sbs-muted">09:24</span>
         </div>
 
-        {/* Itinéraire */}
-        <div className="bg-sbs-blue-light/40 p-4">
+        {/* Itinéraire — cliquable pour ouvrir la recherche */}
+        <button
+          type="button"
+          onClick={openSearch}
+          className="block w-full bg-sbs-blue-light/40 p-4 text-left transition-colors hover:bg-sbs-blue-light/70"
+        >
           <div className="rounded-card bg-white p-3 shadow-soft">
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-center gap-1">
@@ -202,18 +208,20 @@ function HeroMockup() {
               </div>
             </div>
           </div>
-        </div>
+        </button>
 
-        {/* Liste de trajets */}
+        {/* Liste de trajets — chaque ligne cliquable */}
         <div className="space-y-2 p-3">
           {[
             { name: 'Achille N.', time: '06:30', price: 4000, rating: 4.8 },
             { name: 'Marlène T.', time: '09:00', price: 3500, rating: 4.9 },
             { name: 'Joël M.', time: '14:15', price: 3000, rating: 4.5 },
           ].map((t, i) => (
-            <div
+            <button
               key={i}
-              className="flex items-center gap-3 rounded-card border border-sbs-border p-2.5"
+              type="button"
+              onClick={openSearch}
+              className="flex w-full items-center gap-3 rounded-card border border-sbs-border p-2.5 text-left transition-all hover:border-sbs-blue/40 hover:bg-sbs-blue-light/30 active:scale-[0.98]"
             >
               <Avatar name={t.name} size="sm" />
               <div className="min-w-0 flex-1">
@@ -232,14 +240,18 @@ function HeroMockup() {
                 </div>
                 <div className="text-[9px] text-sbs-muted">F CFA</div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
-        {/* CTA mockup */}
+        {/* CTA mockup — cliquable aussi */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-sbs-border bg-white p-3">
-          <button className="flex w-full items-center justify-center gap-2 rounded-pill bg-sbs-blue py-3 text-sm font-bold text-white">
-            Réserver
+          <button
+            type="button"
+            onClick={openSearch}
+            className="flex w-full items-center justify-center gap-2 rounded-pill bg-sbs-blue py-3 text-sm font-bold text-white transition-colors hover:bg-sbs-blue-dark"
+          >
+            Voir tous les trajets
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -367,14 +379,14 @@ function HowItWorks() {
 
 /* ----------------------------- ROUTES ----------------------------- */
 
-function RoutesSection() {
+function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
   const routes = [
-    { from: 'Douala', to: 'Bafoussam', price: 3500, duration: '4 h 15', popular: true, available: true },
-    { from: 'Bafoussam', to: 'Douala', price: 3500, duration: '4 h 00', popular: true, available: true },
-    { from: 'Douala', to: 'Yaoundé', price: 3000, duration: '3 h 30', popular: false, available: false },
-    { from: 'Bafoussam', to: 'Bamenda', price: 2000, duration: '1 h 30', popular: false, available: false },
-    { from: 'Douala', to: 'Kribi', price: 2500, duration: '2 h 45', popular: false, available: false },
-    { from: 'Bafoussam', to: 'Dschang', price: 1500, duration: '1 h 00', popular: false, available: false },
+    { from: 'Douala', to: 'Bafoussam', fromId: 'douala', toId: 'bafoussam', price: 3500, duration: '4 h 15', popular: true, available: true },
+    { from: 'Bafoussam', to: 'Douala', fromId: 'bafoussam', toId: 'douala', price: 3500, duration: '4 h 00', popular: true, available: true },
+    { from: 'Douala', to: 'Yaoundé', fromId: 'douala', toId: 'yaounde', price: 3000, duration: '3 h 30', popular: false, available: false },
+    { from: 'Bafoussam', to: 'Bamenda', fromId: 'bafoussam', toId: 'bamenda', price: 2000, duration: '1 h 30', popular: false, available: false },
+    { from: 'Douala', to: 'Kribi', fromId: 'douala', toId: 'kribi', price: 2500, duration: '2 h 45', popular: false, available: false },
+    { from: 'Bafoussam', to: 'Dschang', fromId: 'bafoussam', toId: 'dschang', price: 1500, duration: '1 h 00', popular: false, available: false },
   ];
 
   return (
@@ -391,40 +403,56 @@ function RoutesSection() {
         </header>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {routes.map((r) => (
-            <div
-              key={`${r.from}-${r.to}`}
-              className={cn(
-                'rounded-card-lg border bg-white p-5 transition-all',
-                r.available
-                  ? 'border-sbs-border hover:border-sbs-blue/40 hover:shadow-card'
-                  : 'border-dashed border-sbs-border opacity-70',
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <MapPin className="h-4 w-4 text-sbs-blue" />
-                  {r.from}
-                  <ArrowRight className="h-3.5 w-3.5 text-sbs-muted" />
-                  {r.to}
-                </div>
-                {r.popular && <Badge tone="yellow">Populaire</Badge>}
-                {!r.available && <Badge tone="muted">Bientôt</Badge>}
-              </div>
-              <div className="mt-3 flex items-baseline justify-between">
-                <div>
-                  <div className="font-display text-xl font-extrabold text-sbs-dark">
-                    {r.price.toLocaleString('fr-FR')} <span className="text-sm">F CFA</span>
+          {routes.map((r) => {
+            const inner = (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <MapPin className="h-4 w-4 text-sbs-blue" />
+                    {r.from}
+                    <ArrowRight className="h-3.5 w-3.5 text-sbs-muted" />
+                    {r.to}
                   </div>
-                  <div className="text-[11px] text-sbs-muted">à partir de</div>
+                  {r.popular && <Badge tone="yellow">Populaire</Badge>}
+                  {!r.available && <Badge tone="muted">Bientôt</Badge>}
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-sbs-dark">{r.duration}</div>
-                  <div className="text-[11px] text-sbs-muted">durée estimée</div>
+                <div className="mt-3 flex items-baseline justify-between">
+                  <div>
+                    <div className="font-display text-xl font-extrabold text-sbs-dark">
+                      {r.price.toLocaleString('fr-FR')} <span className="text-sm">F CFA</span>
+                    </div>
+                    <div className="text-[11px] text-sbs-muted">à partir de</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-sbs-dark">{r.duration}</div>
+                    <div className="text-[11px] text-sbs-muted">durée estimée</div>
+                  </div>
                 </div>
+              </>
+            );
+
+            if (r.available) {
+              return (
+                <button
+                  key={`${r.from}-${r.to}`}
+                  type="button"
+                  onClick={() => onNavigate('search', { from: r.fromId, to: r.toId })}
+                  className="rounded-card-lg border border-sbs-border bg-white p-5 text-left transition-all hover:border-sbs-blue/40 hover:shadow-card active:scale-[0.99]"
+                >
+                  {inner}
+                </button>
+              );
+            }
+            return (
+              <div
+                key={`${r.from}-${r.to}`}
+                className="rounded-card-lg border border-dashed border-sbs-border bg-white p-5 opacity-70"
+                title="Cette route arrive bientôt"
+              >
+                {inner}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

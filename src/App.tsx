@@ -29,7 +29,13 @@ function App() {
 
     case 'search':
     case 'search-results':
-      return <SearchTrips onNavigate={navigate} />;
+      return (
+        <SearchTrips
+          onNavigate={navigate}
+          initialFromId={route.params.from}
+          initialToId={route.params.to}
+        />
+      );
 
     case 'onboarding':
     case 'auth':
