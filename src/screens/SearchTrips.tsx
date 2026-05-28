@@ -9,7 +9,7 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { CITIES, findCity } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
 import { ApiClient, type ApiTrip } from '@/lib/api';
-import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL } from '@/lib/category';
+import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL, isBargainPrice } from '@/lib/category';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import type { Screen, SearchFilters, Trip, TripOption, TripCategory } from '@/lib/types';
@@ -369,17 +369,30 @@ function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: numb
   const departure = new Date(trip.departureAt);
   const arrival = new Date(departure.getTime() + trip.durationMin * 60 * 1000);
   const category = computeTripCategory(trip.driver.car.type, trip.driver.car.year, trip.options);
+  const bargain = isBargainPrice(trip.pricePerSeat, category);
 
   return (
     <li>
       <button
         type="button"
         onClick={onSelect}
-        className="w-full rounded-card-lg border border-sbs-border bg-white p-4 text-left shadow-soft transition-all hover:border-sbs-blue/40 hover:shadow-card sm:p-5"
+        className={cn(
+          'w-full rounded-card-lg border bg-white p-4 text-left shadow-soft transition-all hover:shadow-card sm:p-5',
+          bargain
+            ? 'border-sbs-yellow ring-2 ring-sbs-yellow/30 hover:border-sbs-yellow'
+            : 'border-sbs-border hover:border-sbs-blue/40',
+        )}
       >
-        {/* Badge catégorie en haut */}
-        <div className="mb-3 flex items-center justify-between">
-          <CategoryBadge category={category} size="md" />
+        {/* Badge catégorie + badge Bon plan si applicable */}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CategoryBadge category={category} size="md" />
+            {bargain && (
+              <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-yellow bg-sbs-yellow-light px-2 py-0.5 text-[10px] font-extrabold text-sbs-yellow-dark">
+                🎁 Bon plan
+              </span>
+            )}
+          </div>
           <span className="text-[11px] text-sbs-muted">
             {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year}
           </span>

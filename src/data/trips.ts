@@ -131,7 +131,8 @@ export const TRIPS: Trip[] = [
     durationMin: 230,
     seatsTotal: 4,
     seatsLeft: 1,
-    pricePerSeat: 5000,
+    // Émile a un RAV4 (Premium) mais baisse à 4000 F pour remplir vite → Bon plan !
+    pricePerSeat: 4000,
     options: ['bagages', 'animaux', 'climatisation', 'non-fumeur'],
     status: 'available',
   },

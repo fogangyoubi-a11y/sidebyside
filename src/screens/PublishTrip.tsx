@@ -15,7 +15,7 @@ import { CITIES } from '@/data/cities';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
 import { SBS_COMMISSION_RATE } from '@/lib/booking';
-import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, CATEGORY_INFO } from '@/lib/category';
+import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, isBargainPrice, ABSOLUTE_MIN_PRICE, CATEGORY_INFO } from '@/lib/category';
 import type { Screen, TripOption, VehicleType } from '@/lib/types';
 
 interface PublishTripProps {
@@ -75,16 +75,17 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
     setForm((f) => {
       const next = { ...f, ...patch };
       // Si on change le véhicule ou les options, la catégorie peut changer
-      // → on ajuste le prix s'il est hors de la nouvelle fourchette
+      // → on n'ajuste le prix QUE s'il dépasse le plafond de la nouvelle catégorie
+      // (un prix bas reste valide même après changement — l'utilisateur garde sa volonté)
       const categoryChanged =
         patch.vehicleType !== undefined ||
         patch.vehicleYear !== undefined ||
         patch.options !== undefined;
       if (categoryChanged) {
         const newCat = computeTripCategory(next.vehicleType, next.vehicleYear, next.options);
-        const newRange = PRICE_RANGE_BY_CATEGORY[newCat];
-        if (next.pricePerSeat < newRange.min || next.pricePerSeat > newRange.max) {
-          next.pricePerSeat = newRange.suggested;
+        const newMax = PRICE_RANGE_BY_CATEGORY[newCat].max;
+        if (next.pricePerSeat > newMax || next.pricePerSeat < ABSOLUTE_MIN_PRICE) {
+          next.pricePerSeat = PRICE_RANGE_BY_CATEGORY[newCat].suggested;
         }
       }
       return next;
@@ -109,6 +110,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   const category = computeTripCategory(form.vehicleType, form.vehicleYear, form.options);
   const priceRange = PRICE_RANGE_BY_CATEGORY[category];
   const priceValid = isPriceValidForCategory(form.pricePerSeat, category);
+  const isBargain = isBargainPrice(form.pricePerSeat, category);
 
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(form.date);
   const valid =
@@ -242,13 +244,23 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
             </div>
             <div className="mt-3 rounded-card bg-white px-3 py-2 text-[11px]">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-sbs-dark">Fourchette de prix autorisée :</span>
+                <span className="font-semibold text-sbs-dark">Tarif normal {CATEGORY_INFO[category].label} :</span>
                 <span className="font-mono font-bold text-sbs-blue">
                   {priceRange.min.toLocaleString('fr-FR')} – {priceRange.max.toLocaleString('fr-FR')} F CFA
                 </span>
               </div>
+              {category !== 'economique' && (
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-[10px] text-sbs-yellow-dark">🎁 Vous pouvez aussi baisser jusqu'à :</span>
+                  <span className="font-mono text-[10px] font-bold text-sbs-yellow-dark">
+                    {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA (Bon plan)
+                  </span>
+                </div>
+              )}
               <p className="mt-1 text-[10px] text-sbs-muted">
-                💡 Pour facturer plus, équipez-vous d'un SUV/4×4 récent avec climatisation (catégorie supérieure).
+                💡 {category === 'premium'
+                  ? 'Vous êtes déjà au plus haut niveau ! Vous pouvez aussi vendre moins cher pour remplir vite.'
+                  : 'Pour facturer plus, équipez-vous d\'un SUV/4×4 récent avec climatisation.'}
               </p>
             </div>
           </div>
@@ -325,7 +337,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                 </span>
                 <input
                   type="number"
-                  min={priceRange.min}
+                  min={ABSOLUTE_MIN_PRICE}
                   max={priceRange.max}
                   step={100}
                   value={form.pricePerSeat}
@@ -334,22 +346,45 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                 />
                 <span className="pr-3 text-[11px] font-semibold text-sbs-muted">F CFA</span>
               </div>
-              <p className={cn(
-                'mt-1 text-[11px]',
-                priceValid ? 'text-sbs-muted' : 'font-semibold text-sbs-red',
-              )}>
-                {priceValid
-                  ? `✓ Fourchette ${CATEGORY_INFO[category].label} : ${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA`
-                  : `Hors fourchette ${CATEGORY_INFO[category].label} (${priceRange.min.toLocaleString('fr-FR')} – ${priceRange.max.toLocaleString('fr-FR')} F CFA)`}
-              </p>
-              {!priceValid && (
-                <button
-                  type="button"
-                  onClick={() => update({ pricePerSeat: priceRange.suggested })}
-                  className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
-                >
-                  ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
-                </button>
+
+              {/* Message contextuel selon le prix */}
+              {priceValid && isBargain && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-sbs-yellow-dark">
+                  🎁 Bon plan ! Vous proposez votre {CATEGORY_INFO[category].label} sous le tarif normal — le passager va adorer.
+                </p>
+              )}
+              {priceValid && !isBargain && (
+                <p className="mt-1 text-[11px] text-sbs-muted">
+                  ✓ Tarif normal {CATEGORY_INFO[category].label} : {priceRange.min.toLocaleString('fr-FR')} – {priceRange.max.toLocaleString('fr-FR')} F CFA
+                </p>
+              )}
+              {!priceValid && form.pricePerSeat > priceRange.max && (
+                <>
+                  <p className="mt-1 text-[11px] font-semibold text-sbs-red">
+                    🚫 Trop élevé pour votre catégorie {CATEGORY_INFO[category].label} (plafond {priceRange.max.toLocaleString('fr-FR')} F CFA)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => update({ pricePerSeat: priceRange.suggested })}
+                    className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                  >
+                    ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
+                  </button>
+                </>
+              )}
+              {!priceValid && form.pricePerSeat < ABSOLUTE_MIN_PRICE && (
+                <>
+                  <p className="mt-1 text-[11px] font-semibold text-sbs-red">
+                    🚫 Trop bas — prix minimum {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => update({ pricePerSeat: ABSOLUTE_MIN_PRICE })}
+                    className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                  >
+                    ✨ Mettre {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
+                  </button>
+                </>
               )}
             </div>
           </div>

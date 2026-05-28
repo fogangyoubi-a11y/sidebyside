@@ -109,8 +109,30 @@ export const PRICE_RANGE_BY_CATEGORY: Record<TripCategory, PriceRange> = {
   premium:    { min: 5_000, max: 8_500, suggested: 6_500 },
 };
 
-/** Vérifie qu'un prix est cohérent avec sa catégorie. */
+/** Prix MINIMUM absolu sur la plateforme — le bas de la fourchette Économique. */
+export const ABSOLUTE_MIN_PRICE = PRICE_RANGE_BY_CATEGORY.economique.min;
+
+/**
+ * Vérifie qu'un prix est ACCEPTABLE pour une catégorie donnée.
+ *
+ * Règle asymétrique : un chauffeur peut **descendre** sous le tarif normal
+ * de sa catégorie (pour remplir vite ou par générosité), mais ne peut **jamais
+ * dépasser** le plafond de sa catégorie (anti-tromperie envers le passager).
+ *
+ * Ex : un chauffeur Premium peut facturer entre 2 500 et 8 500 F CFA.
+ *      Un chauffeur Économique reste strictement entre 2 500 et 4 000 F CFA.
+ */
 export function isPriceValidForCategory(price: number, category: TripCategory): boolean {
-  const range = PRICE_RANGE_BY_CATEGORY[category];
-  return price >= range.min && price <= range.max;
+  return price >= ABSOLUTE_MIN_PRICE && price <= PRICE_RANGE_BY_CATEGORY[category].max;
+}
+
+/**
+ * Détecte qu'un trajet est un "Bon plan" : le chauffeur facture **sous**
+ * le tarif normal de sa catégorie (cadeau au passager).
+ *
+ * Ex : SUV Premium (normal 5 000-8 500 F) à 3 500 F = bon plan.
+ *      Logan Économique à 3 000 F = NON, c'est le tarif normal de sa catégorie.
+ */
+export function isBargainPrice(price: number, category: TripCategory): boolean {
+  return price < PRICE_RANGE_BY_CATEGORY[category].min;
 }
