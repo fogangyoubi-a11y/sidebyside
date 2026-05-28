@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, MapPin, Calendar, Clock, Users, Coins,
+  ArrowLeft, ArrowRight, MapPin, Calendar, Users, Coins,
   Briefcase, Cat, Cigarette, Music, Wind, CheckCircle2, Car, Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Input } from '@/components/ui/Input';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { TimeInput } from '@/components/security/TimeInput';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { CITIES } from '@/data/cities';
 import { cn, formatXAF } from '@/lib/utils';
@@ -152,12 +153,10 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               onChange={(e) => update({ date: e.target.value })}
               leftIcon={<Calendar className="h-4 w-4" />}
             />
-            <Input
+            <TimeInput
               label="Heure de départ"
-              type="time"
               value={form.time}
-              onChange={(e) => update({ time: e.target.value })}
-              leftIcon={<Clock className="h-4 w-4" />}
+              onChange={(time) => update({ time })}
             />
           </div>
         </Section>
