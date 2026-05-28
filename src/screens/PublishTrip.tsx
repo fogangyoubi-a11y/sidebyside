@@ -9,6 +9,7 @@ import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Input } from '@/components/ui/Input';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { TimeInput } from '@/components/security/TimeInput';
+import { DateInput } from '@/components/security/DateInput';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { CITIES } from '@/data/cities';
 import { cn, formatXAF } from '@/lib/utils';
@@ -58,6 +59,13 @@ const initialForm: FormState = {
 };
 
 const VEHICLE_TYPES: VehicleType[] = ['berline', 'citadine', 'suv', '4x4', 'monospace'];
+
+/** Date max acceptée pour la publication = aujourd'hui + 90 jours. */
+function maxDateISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export function PublishTrip({ onNavigate }: PublishTripProps) {
   const [form, setForm] = useState<FormState>(initialForm);
@@ -145,13 +153,12 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
         {/* Date & heure */}
         <Section title="📅 Quand partez-vous ?">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input
+            <DateInput
               label="Date du départ"
-              type="date"
               value={form.date}
               min={todayISO()}
-              onChange={(e) => update({ date: e.target.value })}
-              leftIcon={<Calendar className="h-4 w-4" />}
+              max={maxDateISO()}
+              onChange={(date) => update({ date })}
             />
             <TimeInput
               label="Heure de départ"
