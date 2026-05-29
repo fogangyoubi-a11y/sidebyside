@@ -146,7 +146,7 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
         <div className="absolute -bottom-20 -left-20 h-96 w-96 rounded-full bg-sbs-blue blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-20 lg:grid-cols-2 lg:py-28">
+      <div className="relative mx-auto flex max-w-3xl flex-col items-center gap-10 px-4 py-12 text-center sm:px-6 sm:py-20 lg:py-28">
         {/* Texte */}
         <div className="max-w-xl">
           <div className="mb-5 inline-flex items-center gap-2 rounded-pill bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
@@ -197,106 +197,8 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
             </span>
           </div>
         </div>
-
-        {/* Mockup app */}
-        <HeroMockup onNavigate={onNavigate} />
       </div>
     </section>
-  );
-}
-
-function HeroMockup({ onNavigate }: { onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
-  /** Tous les "trajets" du mockup ouvrent la recherche Douala→Bafoussam. */
-  const openSearch = () => onNavigate('search', { from: 'douala', to: 'bafoussam' });
-  return (
-    <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
-      <div className="relative aspect-[9/16] overflow-hidden rounded-card-lg bg-white shadow-card-hover">
-        {/* Header app */}
-        <div className="flex items-center justify-between border-b border-sbs-border bg-white px-4 py-3">
-          <div className="flex items-center gap-2">
-            <SbsLogo size="sm" />
-            <span className="font-display text-sm font-extrabold">SideBySide</span>
-          </div>
-          <span className="text-[10px] text-sbs-muted">09:24</span>
-        </div>
-
-        {/* Itinéraire — cliquable pour ouvrir la recherche */}
-        <button
-          type="button"
-          onClick={openSearch}
-          className="block w-full bg-sbs-blue-light/40 p-4 text-left transition-colors hover:bg-sbs-blue-light/70"
-        >
-          <div className="rounded-card bg-white p-3 shadow-soft">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-center gap-1">
-                <span className="h-3 w-3 rounded-full bg-sbs-blue ring-4 ring-sbs-blue/20" />
-                <span className="h-8 w-0.5 border-l-2 border-dashed border-sbs-border" />
-                <span className="h-3 w-3 rounded-full bg-sbs-yellow ring-4 ring-sbs-yellow/20" />
-              </div>
-              <div className="flex-1">
-                <div className="text-xs text-sbs-muted">Départ</div>
-                <div className="text-sm font-bold text-sbs-dark">Douala</div>
-                <div className="mt-3 text-xs text-sbs-muted">Arrivée</div>
-                <div className="text-sm font-bold text-sbs-dark">Bafoussam</div>
-              </div>
-              <div className="text-right">
-                <Badge tone="green">3 dispo</Badge>
-              </div>
-            </div>
-          </div>
-        </button>
-
-        {/* Liste de trajets — chaque ligne cliquable */}
-        <div className="space-y-2 p-3">
-          {[
-            { name: 'Achille N.', time: '06:30', price: 4000, rating: 4.8 },
-            { name: 'Marlène T.', time: '09:00', price: 3500, rating: 4.9 },
-            { name: 'Joël M.', time: '14:15', price: 3000, rating: 4.5 },
-          ].map((t, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={openSearch}
-              className="flex w-full items-center gap-3 rounded-card border border-sbs-border p-2.5 text-left transition-all hover:border-sbs-blue/40 hover:bg-sbs-blue-light/30 active:scale-[0.98]"
-            >
-              <Avatar name={t.name} size="sm" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-bold text-sbs-dark">{t.time}</span>
-                  <span className="flex items-center gap-0.5 text-[10px] text-sbs-muted">
-                    <Star className="h-2.5 w-2.5 fill-sbs-yellow text-sbs-yellow" />
-                    {t.rating}
-                  </span>
-                </div>
-                <div className="truncate text-[11px] text-sbs-muted">{t.name}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-display text-sm font-extrabold text-sbs-blue">
-                  {t.price.toLocaleString('fr-FR')}
-                </div>
-                <div className="text-[9px] text-sbs-muted">F CFA</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Floating badge */}
-      <div className="absolute -right-4 -top-4 rotate-6 rounded-card-lg bg-sbs-yellow px-3 py-2 text-sbs-dark shadow-card">
-        <div className="font-display text-xs font-extrabold">−40 %</div>
-        <div className="text-[9px] font-semibold">vs. agences</div>
-      </div>
-      <div className="absolute -bottom-4 -left-4 -rotate-3 rounded-card-lg bg-white px-3 py-2 shadow-card">
-        <div className="flex items-center gap-1">
-          <Star className="h-3 w-3 fill-sbs-yellow text-sbs-yellow" />
-          <Star className="h-3 w-3 fill-sbs-yellow text-sbs-yellow" />
-          <Star className="h-3 w-3 fill-sbs-yellow text-sbs-yellow" />
-          <Star className="h-3 w-3 fill-sbs-yellow text-sbs-yellow" />
-          <Star className="h-3 w-3 fill-sbs-yellow text-sbs-yellow" />
-        </div>
-        <div className="text-[9px] font-semibold text-sbs-muted">4.8 · 500 avis</div>
-      </div>
-    </div>
   );
 }
 
