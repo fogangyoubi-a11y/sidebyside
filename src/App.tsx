@@ -9,6 +9,8 @@ import { TripDetail } from '@/screens/TripDetail';
 import { Booking } from '@/screens/Booking';
 import { PublishTrip } from '@/screens/PublishTrip';
 import { Messages } from '@/screens/Messages';
+import { MyTrips } from '@/screens/MyTrips';
+import { Profile } from '@/screens/Profile';
 
 interface RouteState {
   screen: Screen;
@@ -60,11 +62,17 @@ function App() {
       );
 
     case 'publish-trip':
-    case 'driver-trips':
       return <PublishTrip onNavigate={navigate} />;
+
+    case 'my-trips':
+    case 'driver-trips':
+      return <MyTrips onNavigate={navigate} />;
 
     case 'messages':
       return <Messages onNavigate={navigate} />;
+
+    case 'profile':
+      return <Profile onNavigate={navigate} />;
 
     default:
       return <ComingSoon screen={route.screen} onNavigate={navigate} />;

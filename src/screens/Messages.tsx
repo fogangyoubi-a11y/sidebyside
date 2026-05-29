@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { TrustBadge } from '@/components/security/TrustBadge';
-import { MOCK_CONVERSATIONS, findConversation } from '@/lib/messages';
+import { MOCK_CONVERSATIONS, findConversation, totalUnread } from '@/lib/messages';
+import { BottomNav } from '@/components/layout/BottomNav';
 import { MessageThread } from './MessageThread';
 import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
@@ -29,7 +30,7 @@ export function Messages({ onNavigate }: MessagesProps) {
   }
 
   return (
-    <div className="min-h-screen bg-sbs-cream">
+    <div className="min-h-screen bg-sbs-cream pb-24">
       <header className="sticky top-0 z-30 border-b border-sbs-border bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3 sm:px-6">
           <button
@@ -115,6 +116,8 @@ export function Messages({ onNavigate }: MessagesProps) {
           </ul>
         )}
       </main>
+
+      <BottomNav active="messages" onNavigate={onNavigate} messagesUnread={totalUnread()} />
     </div>
   );
 }

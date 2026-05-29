@@ -12,6 +12,7 @@ import { ApiClient, type ApiTrip } from '@/lib/api';
 import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL, isBargainPrice } from '@/lib/category';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
+import { BottomNav } from '@/components/layout/BottomNav';
 import type { Screen, SearchFilters, Trip, TripOption, TripCategory } from '@/lib/types';
 
 interface SearchTripsProps {
@@ -94,7 +95,7 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
   }
 
   return (
-    <div className="min-h-screen bg-sbs-cream pb-10">
+    <div className="min-h-screen bg-sbs-cream pb-24">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-sbs-border bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
@@ -253,6 +254,8 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
           )}
         </section>
       </main>
+
+      <BottomNav active="search" onNavigate={onNavigate} messagesUnread={3} />
     </div>
   );
 }

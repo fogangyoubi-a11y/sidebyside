@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
+import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
@@ -30,7 +31,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-sbs-cream">
+    <div className="min-h-screen bg-sbs-cream pb-20">
       <LandingHeader onNavigate={onNavigate} />
       <Hero onNavigate={onNavigate} navigateGated={navigateGated} />
       <TrustBar />
@@ -40,6 +41,9 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <Testimonials />
       <FinalCTA onNavigate={onNavigate} />
       <Footer />
+
+      {/* Barre de navigation principale en bas (style BlaBlaCar / Uber) */}
+      <BottomNav onNavigate={onNavigate} messagesUnread={3} />
 
       {/* Modal d'auth gate — partagé pour toutes les actions qui requièrent un compte */}
       {authGate && (

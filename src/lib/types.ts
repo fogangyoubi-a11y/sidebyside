@@ -20,6 +20,7 @@ export type Screen =
   | 'booking-confirmed'
   | 'publish-trip'
   | 'driver-trips'
+  | 'my-trips'
   | 'messages'
   | 'profile'
   | 'admin';
