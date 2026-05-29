@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { MapPin, Shield, Wallet, MessageCircle, Star, ArrowRight, Smartphone, Users, Search, Car } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
+import { AuthGateModal } from '@/components/auth/AuthGateModal';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
 
@@ -11,20 +14,53 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onNavigate }: LandingPageProps) {
+  const { isAuthenticated } = useAuth();
+  const [authGate, setAuthGate] = useState<null | { action: string; target: Screen }>(null);
+
+  /**
+   * Si l'utilisateur n'est pas connecté, ouvre la popup "J'ai déjà un compte / Créer un compte".
+   * Sinon, navigue directement vers l'écran cible.
+   */
+  function navigateGated(target: Screen, action: string) {
+    if (isAuthenticated) {
+      onNavigate(target);
+    } else {
+      setAuthGate({ action, target });
+    }
+  }
+
   return (
     <div className="min-h-screen bg-sbs-cream">
       <LandingHeader onNavigate={onNavigate} />
-      <Hero onNavigate={onNavigate} />
+      <Hero onNavigate={onNavigate} navigateGated={navigateGated} />
       <TrustBar />
       <HowItWorks />
       <RoutesSection onNavigate={onNavigate} />
-      <DriverCTA onNavigate={onNavigate} />
+      <DriverCTA onNavigate={onNavigate} navigateGated={navigateGated} />
       <Testimonials />
       <FinalCTA onNavigate={onNavigate} />
       <Footer />
+
+      {/* Modal d'auth gate — partagé pour toutes les actions qui requièrent un compte */}
+      {authGate && (
+        <AuthGateModal
+          action={authGate.action}
+          onClose={() => setAuthGate(null)}
+          onLogin={() => {
+            setAuthGate(null);
+            onNavigate('login');
+          }}
+          onRegister={() => {
+            setAuthGate(null);
+            onNavigate('onboarding');
+          }}
+        />
+      )}
     </div>
   );
 }
+
+type NavigateGated = (target: Screen, action: string) => void;
 
 /* ----------------------------- HEADER ----------------------------- */
 
@@ -101,7 +137,7 @@ function NavItem({ label, target }: { label: string; target: string }) {
 
 /* ----------------------------- HERO ----------------------------- */
 
-function Hero({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; navigateGated: NavigateGated }) {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-sbs-blue via-sbs-blue-dark to-sbs-dark text-white">
       {/* Pattern décoratif */}
@@ -142,7 +178,7 @@ function Hero({ onNavigate }: { onNavigate: (s: Screen) => void }) {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => onNavigate('publish-trip')}
+              onClick={() => navigateGated('publish-trip', 'publier un trajet en tant que chauffeur')}
               className="rounded-pill"
             >
               <Car className="h-5 w-5" />
@@ -461,7 +497,7 @@ function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record
 
 /* ----------------------------- DRIVER CTA ----------------------------- */
 
-function DriverCTA({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+function DriverCTA({ navigateGated }: { onNavigate: (s: Screen) => void; navigateGated: NavigateGated }) {
   return (
     <section id="driver" className="bg-gradient-to-br from-sbs-yellow-light via-white to-sbs-blue-light py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -497,7 +533,7 @@ function DriverCTA({ onNavigate }: { onNavigate: (s: Screen) => void }) {
             </ul>
 
             <div className="mt-7">
-              <Button variant="primary" size="lg" onClick={() => onNavigate('publish-trip')} className="rounded-pill">
+              <Button variant="primary" size="lg" onClick={() => navigateGated('publish-trip', 'publier votre premier trajet')} className="rounded-pill">
                 <Car className="h-5 w-5" />
                 Publier mon premier trajet
               </Button>

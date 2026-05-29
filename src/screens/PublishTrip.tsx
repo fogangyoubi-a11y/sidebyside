@@ -11,7 +11,9 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { TimeInput } from '@/components/security/TimeInput';
 import { DateInput } from '@/components/security/DateInput';
 import { TrustBadge } from '@/components/security/TrustBadge';
+import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { CITIES } from '@/data/cities';
+import { useAuth } from '@/hooks/useAuth';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
 import { SBS_COMMISSION_RATE } from '@/lib/booking';
@@ -68,8 +70,22 @@ function maxDateISO(): string {
 }
 
 export function PublishTrip({ onNavigate }: PublishTripProps) {
+  const { isAuthenticated } = useAuth();
   const [form, setForm] = useState<FormState>(initialForm);
   const [published, setPublished] = useState(false);
+
+  // Si l'utilisateur arrive ici sans être connecté (ex. URL directe), on lui
+  // demande d'abord de se connecter / créer un compte avant le formulaire.
+  if (!isAuthenticated) {
+    return (
+      <AuthGateModal
+        action="publier un trajet"
+        onClose={() => onNavigate('landing')}
+        onLogin={() => onNavigate('login')}
+        onRegister={() => onNavigate('onboarding')}
+      />
+    );
+  }
 
   function update(patch: Partial<FormState>) {
     setForm((f) => {
