@@ -279,18 +279,6 @@ function HeroMockup({ onNavigate }: { onNavigate: (s: Screen, params?: Record<st
             </button>
           ))}
         </div>
-
-        {/* CTA mockup — cliquable aussi */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-sbs-border bg-white p-3">
-          <button
-            type="button"
-            onClick={openSearch}
-            className="flex w-full items-center justify-center gap-2 rounded-pill bg-sbs-blue py-3 text-sm font-bold text-white transition-colors hover:bg-sbs-blue-dark"
-          >
-            Voir tous les trajets
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
       </div>
 
       {/* Floating badge */}
