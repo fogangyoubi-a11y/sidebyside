@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Input } from '@/components/ui/Input';
+import { PayPalLogo } from '@/components/ui/PayPalLogo';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { PhoneInput } from '@/components/security/PhoneInput';
 import { DocumentUpload } from '@/components/security/DocumentUpload';
 import { findTrip } from '@/data/trips';
 import {
   computePrice, computeFamilyPrice, getChildTier, generateBookingRef,
-  PAYMENT_METHODS, getPaymentInfo,
+  getOrderedPaymentMethods, getPaymentInfo,
 } from '@/lib/booking';
 import { cn, formatDate, formatTime, formatXAF } from '@/lib/utils';
 import { validatePhoneCM } from '@/lib/security';
@@ -176,6 +177,7 @@ export function Booking({ tripId, seats, onNavigate }: BookingProps) {
           <MethodStep
             total={price.total}
             paymentMethod={paymentMethod}
+            bookingMode={bookingMode}
             onSelect={setPaymentMethod}
             onNext={() => setStep('pay')}
           />
@@ -591,44 +593,73 @@ function RecapStep({ trip, departure, seats, bookingMode, beneficiary, children,
    Sous-composants existants (Method, PaymentForm, Success, helpers)
    ============================================================ */
 
-function MethodStep({ total, paymentMethod, onSelect, onNext }: {
+function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
   total: number;
   paymentMethod: PaymentMethod | null;
+  bookingMode: BookingMode;
   onSelect: (m: PaymentMethod) => void;
   onNext: () => void;
 }) {
+  const methods = getOrderedPaymentMethods(bookingMode);
   return (
     <div className="space-y-3">
       <p className="text-center text-sm text-sbs-muted">
         Choisissez comment payer vos <strong className="text-sbs-dark">{formatXAF(total)}</strong>
       </p>
-      <div className="space-y-2">
-        {PAYMENT_METHODS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => m.available && onSelect(m.id)}
-            disabled={!m.available}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-card-lg border-2 p-4 text-left transition-all',
-              !m.available && 'cursor-not-allowed opacity-50',
-              paymentMethod === m.id
-                ? 'border-sbs-blue bg-sbs-blue-light shadow-card scale-[1.01]'
-                : 'border-sbs-border bg-white hover:border-sbs-blue/30 hover:shadow-soft',
-            )}
-          >
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-card-lg text-2xl"
-              style={{ background: m.brandColor, color: m.textColor }} aria-hidden>
-              {m.emoji}
+
+      {bookingMode === 'gift' && (
+        <div className="rounded-card border border-sbs-blue/20 bg-sbs-blue-light/40 p-3 text-[12px] leading-relaxed text-sbs-blue">
+          <p className="flex items-start gap-2">
+            <Gift className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Depuis l'étranger ? <strong>PayPal</strong> et <strong>Carte bancaire</strong> sont
+              les méthodes les plus adaptées — protection acheteur incluse.
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="font-display text-sm font-extrabold text-sbs-dark">{m.label}</div>
-              <div className="text-xs text-sbs-muted">{m.description}</div>
-            </div>
-            {!m.available && <Badge tone="muted">Bientôt</Badge>}
-            {paymentMethod === m.id && <CheckCircle2 className="h-5 w-5 shrink-0 text-sbs-blue" />}
-          </button>
-        ))}
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {methods.map((m) => {
+          const isPayPal = m.id === 'paypal';
+          const recommended = bookingMode === 'gift' && (m.id === 'paypal' || m.id === 'card');
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => m.available && onSelect(m.id)}
+              disabled={!m.available}
+              className={cn(
+                'relative flex w-full items-center gap-3 rounded-card-lg border-2 p-4 text-left transition-all',
+                !m.available && 'cursor-not-allowed opacity-50',
+                paymentMethod === m.id
+                  ? 'border-sbs-blue bg-sbs-blue-light shadow-card scale-[1.01]'
+                  : 'border-sbs-border bg-white hover:border-sbs-blue/30 hover:shadow-soft',
+              )}
+            >
+              <span
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-card-lg text-2xl"
+                style={{ background: m.brandColor, color: m.textColor }}
+                aria-hidden
+              >
+                {isPayPal ? <PayPalLogo size={18} /> : m.emoji}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-display text-sm font-extrabold text-sbs-dark">{m.label}</span>
+                  {recommended && (
+                    <Badge tone="blue" className="text-[10px]">
+                      Recommandé
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-sbs-muted">{m.description}</div>
+              </div>
+              {!m.available && <Badge tone="muted">Bientôt</Badge>}
+              {paymentMethod === m.id && <CheckCircle2 className="h-5 w-5 shrink-0 text-sbs-blue" />}
+            </button>
+          );
+        })}
       </div>
       <Button variant="primary" size="lg" onClick={onNext} disabled={!paymentMethod} className="w-full rounded-pill">
         Continuer
@@ -702,6 +733,7 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
   const info = getPaymentInfo(method);
   const phoneValid = (method === 'mtn' || method === 'orange') ? validatePhoneCM(phone).valid : true;
   const canPay = phoneValid;
+  const isPayPal = method === 'paypal';
 
   return (
     <>
@@ -711,7 +743,9 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
             <div className="text-[11px] font-semibold uppercase tracking-wider opacity-80">Paiement par</div>
             <div className="font-display text-xl font-extrabold">{info.label}</div>
           </div>
-          <span className="text-4xl" aria-hidden>{info.emoji}</span>
+          {isPayPal
+            ? <PayPalLogo size={28} className="opacity-95" />
+            : <span className="text-4xl" aria-hidden>{info.emoji}</span>}
         </div>
         <div className="mt-4 text-3xl font-extrabold tracking-tight">{formatXAF(totalAmount)}</div>
         <div className="text-[11px] opacity-80">à débiter en une fois</div>
@@ -753,16 +787,52 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
         </section>
       )}
 
+      {isPayPal && (
+        <section className="rounded-card-lg border border-sbs-border bg-white p-5 shadow-card">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#003087]/10">
+              <PayPalLogo size={16} />
+            </div>
+            <div>
+              <h3 className="font-display text-sm font-extrabold text-sbs-dark">
+                Connexion sécurisée PayPal
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-sbs-muted">
+                En cliquant sur <strong>Payer avec PayPal</strong>, vous serez redirigé vers la
+                page sécurisée PayPal pour vous identifier (email + mot de passe ou Touch ID).
+                Aucune information bancaire n'est partagée avec SideBySide.
+              </p>
+              <ul className="mt-3 space-y-1.5 text-[11px] text-sbs-muted">
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3 text-sbs-green" />
+                  Protection acheteur incluse
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3 text-sbs-green" />
+                  Remboursement en cas de trajet annulé
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3 w-3 text-sbs-green" />
+                  Conversion EUR / XAF automatique
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
       <div className="rounded-card border border-sbs-green/20 bg-sbs-green/5 p-3 text-[11px] leading-relaxed text-sbs-green">
         <p className="flex items-start gap-2">
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Transaction chiffrée. SideBySide n'enregistre jamais votre code MoMo / Orange / carte.
+          Transaction chiffrée. SideBySide n'enregistre jamais vos identifiants MoMo, Orange, carte ou PayPal.
         </p>
       </div>
 
       <Button variant="primary" size="lg" onClick={onPay} disabled={!canPay || processing} className="w-full rounded-pill">
         {processing ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Traitement en cours…</>
+        ) : isPayPal ? (
+          <><PayPalLogo size={16} /> Payer avec PayPal {formatXAF(totalAmount)}</>
         ) : (
           <><Lock className="h-4 w-4" /> Payer {formatXAF(totalAmount)}</>
         )}

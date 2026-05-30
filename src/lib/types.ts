@@ -100,12 +100,12 @@ export interface Booking {
   passenger: PassengerProfile;
   seats: number;
   totalAmount: number;
-  paymentMethod: 'mtn' | 'orange' | 'card' | 'wallet';
+  paymentMethod: 'mtn' | 'orange' | 'card' | 'paypal' | 'wallet';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   createdAt: string;
 }
 
-export type PaymentMethod = 'mtn' | 'orange' | 'card' | 'wallet';
+export type PaymentMethod = 'mtn' | 'orange' | 'card' | 'paypal' | 'wallet';
 
 /* ============================================================
    "POUR QUI ?" — Modes de réservation

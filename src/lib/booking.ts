@@ -159,6 +159,16 @@ export const PAYMENT_METHODS: PaymentMethodInfo[] = [
     available: true,
   },
   {
+    id: 'paypal',
+    label: 'PayPal',
+    shortLabel: 'PayPal',
+    description: 'Idéal depuis l\'étranger — protection acheteur',
+    brandColor: '#003087',
+    textColor: '#FFFFFF',
+    emoji: '🅿️',
+    available: true,
+  },
+  {
     id: 'wallet',
     label: 'Portefeuille SideBySide',
     shortLabel: 'Portefeuille',
@@ -169,6 +179,23 @@ export const PAYMENT_METHODS: PaymentMethodInfo[] = [
     available: false, // débloqué après 1er trajet
   },
 ];
+
+/**
+ * Ordonne les méthodes de paiement selon le mode de réservation.
+ * - Mode "gift" (diaspora) → PayPal et Carte en tête.
+ * - Mode "self" / "family" → MTN et Orange en tête (utilisateurs locaux).
+ */
+export function getOrderedPaymentMethods(
+  mode: 'self' | 'gift' | 'family' = 'self',
+): PaymentMethodInfo[] {
+  if (mode === 'gift') {
+    const priority = ['paypal', 'card', 'mtn', 'orange', 'wallet'];
+    return [...PAYMENT_METHODS].sort(
+      (a, b) => priority.indexOf(a.id) - priority.indexOf(b.id),
+    );
+  }
+  return PAYMENT_METHODS;
+}
 
 export function getPaymentInfo(id: PaymentMethod): PaymentMethodInfo {
   return PAYMENT_METHODS.find((m) => m.id === id) ?? PAYMENT_METHODS[0]!;
