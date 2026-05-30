@@ -1,7 +1,7 @@
 /**
  * Logique de réservation et paiement SideBySide
  */
-import type { Trip, PaymentMethod } from './types';
+import type { Trip, PaymentMethod, Child, ChildPriceTier } from './types';
 
 export interface BookingDraft {
   tripId: string;
@@ -30,6 +30,82 @@ export function computePrice(trip: Trip, seats: number): PriceBreakdown {
   const total = basePrice + serviceFee;
   const driverEarning = basePrice - commission;
   return { basePrice, serviceFee, total, driverEarning };
+}
+
+/* ============================================================
+   TARIFICATION ENFANT — 3 paliers
+   ============================================================
+   0 – 3 ans  : gratuit (sur les genoux, ne prend pas de place)
+   4 – 11 ans : 50 % du tarif adulte (occupe une place)
+   12 ans et + : tarif plein (occupe une place)
+*/
+
+/** Catégorie tarifaire d'un enfant selon son âge. */
+export function getChildTier(age: number): ChildPriceTier {
+  if (age <= 3) return 'free';
+  if (age <= 11) return 'half';
+  return 'full';
+}
+
+/** Pourcentage du tarif adulte appliqué à un enfant d'un âge donné. */
+export function getChildPriceMultiplier(age: number): number {
+  const tier = getChildTier(age);
+  return tier === 'free' ? 0 : tier === 'half' ? 0.5 : 1;
+}
+
+/** Un enfant occupe-t-il une vraie place dans la voiture ? */
+export function childTakesSeat(age: number): boolean {
+  return age > 3;
+}
+
+/**
+ * Calcule le détail de prix avec adultes + enfants.
+ * - adults = nombre d'adultes (chacun = 1 place pleine au prix plein)
+ * - children = liste des enfants (chacun avec son âge → tier auto)
+ */
+export interface FamilyPriceBreakdown extends PriceBreakdown {
+  adultsCount: number;
+  childrenFreeCount: number;
+  childrenHalfCount: number;
+  childrenFullCount: number;
+  /** Places effectivement occupées dans la voiture (= adultes + enfants ≥ 4 ans). */
+  seatsUsed: number;
+}
+
+export function computeFamilyPrice(
+  trip: Trip,
+  adults: number,
+  children: Child[],
+): FamilyPriceBreakdown {
+  const childrenFree  = children.filter((c) => getChildTier(c.age) === 'free').length;
+  const childrenHalf  = children.filter((c) => getChildTier(c.age) === 'half').length;
+  const childrenFull  = children.filter((c) => getChildTier(c.age) === 'full').length;
+
+  // Sous-totaux
+  const adultsTotal = adults * trip.pricePerSeat;
+  const childrenHalfTotal = childrenHalf * Math.round(trip.pricePerSeat * 0.5);
+  const childrenFullTotal = childrenFull * trip.pricePerSeat;
+  const basePrice = adultsTotal + childrenHalfTotal + childrenFullTotal;
+
+  const commission = Math.round(basePrice * SBS_COMMISSION_RATE);
+  const serviceFee = SBS_FIXED_FEE;
+  const total = basePrice + serviceFee;
+  const driverEarning = basePrice - commission;
+
+  // Places utilisées dans la voiture (enfants 0-3 ans = pas de place car sur les genoux)
+  const seatsUsed = adults + childrenHalf + childrenFull;
+
+  return {
+    basePrice,
+    serviceFee,
+    total,
+    driverEarning,
+    adultsCount: adults,
+    childrenFreeCount: childrenFree,
+    childrenHalfCount: childrenHalf,
+    childrenFullCount: childrenFull,
+    seatsUsed,
+  };
 }
 
 /* ============================================================

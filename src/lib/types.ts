@@ -108,6 +108,33 @@ export interface Booking {
 export type PaymentMethod = 'mtn' | 'orange' | 'card' | 'wallet';
 
 /* ============================================================
+   "POUR QUI ?" — Modes de réservation
+   ============================================================ */
+
+export type BookingMode = 'self' | 'gift' | 'family';
+
+/** Bénéficiaire d'un trajet offert (cas "gift"). */
+export interface Beneficiary {
+  firstName: string;
+  lastName: string;
+  phone: string;             // +237 6XX XX XX XX
+  cniFile: File | null;      // photo CNI obligatoire (recto ou recto-verso au choix)
+}
+
+/** Lien de parenté avec l'enfant. */
+export type ChildRelation = 'fils' | 'fille' | 'neveu' | 'niece' | 'petit-fils' | 'petite-fille' | 'frere' | 'soeur' | 'autre';
+
+/** Enfant qui voyage avec le passager adulte. */
+export interface Child {
+  firstName: string;
+  age: number;               // 0 à 17
+  relation: ChildRelation;
+}
+
+/** Catégorie tarifaire d'un enfant selon son âge. */
+export type ChildPriceTier = 'free' | 'half' | 'full';
+
+/* ============================================================
    MESSAGERIE
    ============================================================ */
 
