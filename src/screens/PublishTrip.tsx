@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ArrowLeft, ArrowRight, MapPin, Calendar, Users, Coins,
-  Briefcase, Cat, Cigarette, Music, Wind, CheckCircle2, Car, Sparkles,
+  Briefcase, Cat, Cigarette, Music, Wind, CheckCircle2, Car, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -14,11 +14,43 @@ import { TrustBadge } from '@/components/security/TrustBadge';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { CITIES } from '@/data/cities';
 import { useAuth } from '@/hooks/useAuth';
+import { ApiClient, ApiError } from '@/lib/api';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
 import { SBS_COMMISSION_RATE } from '@/lib/booking';
 import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, isBargainPrice, ABSOLUTE_MIN_PRICE, CATEGORY_INFO } from '@/lib/category';
 import type { Screen, TripOption, VehicleType } from '@/lib/types';
+
+/** Mapping options local → enum API (majuscules). */
+const OPTION_TO_API: Record<TripOption, 'BAGAGES' | 'ANIMAUX' | 'NON_FUMEUR' | 'MUSIQUE' | 'CLIMATISATION'> = {
+  bagages: 'BAGAGES',
+  animaux: 'ANIMAUX',
+  'non-fumeur': 'NON_FUMEUR',
+  musique: 'MUSIQUE',
+  climatisation: 'CLIMATISATION',
+};
+
+/**
+ * Estimation de durée par couple de villes (en minutes).
+ * Valeurs cohérentes avec ce qu'affiche la Landing + le seed backend.
+ * Fallback : 180 min pour les axes non listés.
+ */
+const ROUTE_DURATION_MIN: Record<string, number> = {
+  'douala->bafoussam': 240,
+  'bafoussam->douala': 245,
+  'douala->yaounde': 210,
+  'yaounde->douala': 210,
+  'bafoussam->bamenda': 90,
+  'bamenda->bafoussam': 90,
+  'douala->kribi': 165,
+  'kribi->douala': 165,
+  'bafoussam->dschang': 60,
+  'dschang->bafoussam': 60,
+};
+
+function estimateDurationMin(fromId: string, toId: string): number {
+  return ROUTE_DURATION_MIN[`${fromId}->${toId}`] ?? 180;
+}
 
 interface PublishTripProps {
   onNavigate: (s: Screen) => void;
@@ -70,9 +102,12 @@ function maxDateISO(): string {
 }
 
 export function PublishTrip({ onNavigate }: PublishTripProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [form, setForm] = useState<FormState>(initialForm);
   const [published, setPublished] = useState(false);
+  const [publishedTripId, setPublishedTripId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Si l'utilisateur arrive ici sans être connecté (ex. URL directe), on lui
   // demande d'abord de se connecter / créer un compte avant le formulaire.
@@ -84,6 +119,14 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
         onLogin={() => onNavigate('login')}
         onRegister={() => onNavigate('onboarding')}
       />
+    );
+  }
+
+  // Restriction côté API : POST /trips exige role=DRIVER. On préviens l'utilisateur
+  // avant qu'il remplisse tout le formulaire si son compte est en mode PASSENGER.
+  if (user && user.role !== 'DRIVER') {
+    return (
+      <DriverRequired onNavigate={onNavigate} />
     );
   }
 
@@ -138,7 +181,43 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
     form.seats >= 1 && form.seats <= 4 &&
     priceValid;
 
-  if (published) return <PublishSuccess form={form} fromCity={fromCity} toCity={toCity} onNavigate={onNavigate} />;
+  /** Construit le payload backend et POSTe /api/trips. */
+  async function handlePublish() {
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      // ISO datetime — on combine date locale (YYYY-MM-DD) + heure (HH:mm) en local,
+      // puis on convertit en UTC via Date(). Le backend stocke en UTC.
+      const [hh, mm] = form.time.split(':').map(Number);
+      const departure = new Date(form.date);
+      departure.setHours(hh ?? 0, mm ?? 0, 0, 0);
+
+      const { trip } = await ApiClient.publishTrip({
+        fromCity: form.fromId,
+        toCity: form.toId,
+        pickupPoint: form.pickupPoint.trim(),
+        dropoffPoint: form.dropoffPoint.trim(),
+        departureAt: departure.toISOString(),
+        durationMin: estimateDurationMin(form.fromId, form.toId),
+        seatsTotal: form.seats,
+        pricePerSeat: form.pricePerSeat,
+        options: form.options.map((o) => OPTION_TO_API[o]),
+      });
+      setPublishedTripId(trip.id);
+      setPublished(true);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        // 403 = pas chauffeur ; 400 = validation. On affiche le message tel quel.
+        setSubmitError(err.message);
+      } else {
+        setSubmitError('Publication impossible. Vérifiez votre connexion.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (published) return <PublishSuccess form={form} fromCity={fromCity} toCity={toCity} tripId={publishedTripId} onNavigate={onNavigate} />;
 
   return (
     <div className="min-h-screen bg-sbs-cream pb-32">
@@ -433,6 +512,18 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
         </Section>
       </main>
 
+      {/* Erreur backend (validation, conflit, etc.) — affichée au-dessus du CTA */}
+      {submitError && (
+        <div className="fixed bottom-[80px] left-0 right-0 z-30 px-4 sm:px-6">
+          <div role="alert" className="mx-auto max-w-2xl rounded-card border border-sbs-red/30 bg-white p-3 text-[12px] text-sbs-red shadow-card">
+            <p className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {submitError}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Sticky CTA bas */}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-sbs-border bg-white px-4 py-3 shadow-card sm:px-6">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
@@ -443,12 +534,12 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
           <Button
             variant="primary"
             size="lg"
-            onClick={() => setPublished(true)}
-            disabled={!valid}
+            onClick={handlePublish}
+            disabled={!valid || submitting}
             className="rounded-pill min-w-[200px]"
           >
             <Car className="h-4 w-4" />
-            Publier le trajet
+            {submitting ? 'Publication…' : 'Publier le trajet'}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -457,10 +548,37 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   );
 }
 
-function PublishSuccess({ form, fromCity, toCity, onNavigate }: {
+/** Affiché si l'utilisateur connecté est PASSENGER au lieu de DRIVER. */
+function DriverRequired({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+  return (
+    <div className="min-h-screen bg-sbs-cream p-8">
+      <div className="mx-auto max-w-md rounded-card-lg border border-sbs-border bg-white p-6 text-center shadow-card">
+        <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-sbs-yellow-light text-sbs-yellow-dark">
+          <Car className="h-6 w-6" />
+        </div>
+        <h2 className="font-display text-xl font-extrabold text-sbs-dark">Compte chauffeur requis</h2>
+        <p className="mt-2 text-sm text-sbs-muted">
+          Votre compte actuel est en mode passager. Pour publier des trajets, il vous faut un
+          compte chauffeur (vérification renforcée : permis + carte grise).
+        </p>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Button variant="primary" size="md" onClick={() => onNavigate('onboarding')} className="rounded-pill">
+            Créer un compte chauffeur
+          </Button>
+          <Button variant="ghost" size="md" onClick={() => onNavigate('landing')}>
+            Retour à l'accueil
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublishSuccess({ form, fromCity, toCity, tripId, onNavigate }: {
   form: FormState;
   fromCity: { name: string };
   toCity: { name: string };
+  tripId: string | null;
   onNavigate: (s: Screen) => void;
 }) {
   return (
@@ -479,6 +597,11 @@ function PublishSuccess({ form, fromCity, toCity, onNavigate }: {
         <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
           Votre trajet <strong className="text-sbs-dark">{fromCity.name} → {toCity.name}</strong> le {form.date} à {form.time} est désormais visible des passagers.
         </p>
+        {tripId && (
+          <p className="mt-2 text-[11px] text-sbs-muted">
+            ID trajet : <code className="rounded bg-sbs-border-soft px-1 font-mono text-[10px]">{tripId}</code>
+          </p>
+        )}
 
         <div className="mx-auto mt-6 max-w-md rounded-card-lg border border-sbs-border bg-white p-5 text-left shadow-card">
           <h3 className="mb-3 font-display text-sm font-extrabold text-sbs-dark">Prochaines étapes</h3>

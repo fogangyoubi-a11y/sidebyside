@@ -114,6 +114,19 @@ export interface ApiUser {
   trustLevel: 'BASIC' | 'VERIFIED' | 'PREMIUM';
 }
 
+/** Profil complet retourné par GET /me — inclut les stats et statuts KYC. */
+export interface ApiUserFull extends ApiUser {
+  email: string | null;
+  birthDate: string;
+  ratingAvg: number | null;
+  tripsCompleted: number;
+  identityVerified: boolean;
+  selfieMatched: boolean;
+  licenseVerified: boolean;
+  bio: string | null;
+  createdAt: string;
+}
+
 export interface ApiTrip {
   id: string;
   driverId: string;
@@ -148,9 +161,38 @@ export const ApiClient = {
 
   getTrip: (id: string) => api<{ trip: ApiTrip }>(`/trips/${id}`),
 
+  /** Mes trajets publiés (chauffeur). DRIVER uniquement, sinon 403. */
+  myDriverTrips: () =>
+    api<{ trips: ApiDriverTrip[]; count: number }>('/trips/mine'),
+
+  /** Annule un trajet — DRIVER (le propriétaire). Cascade : bookings actives + notif conv. */
+  cancelTrip: (id: string) =>
+    api<{ trip: ApiTrip; cancelledBookings: number }>(`/trips/${id}/cancel`, { method: 'POST' }),
+
+  /** Publier un trajet — DRIVER uniquement, sinon 403. */
+  publishTrip: (data: {
+    fromCity: string;
+    toCity: string;
+    pickupPoint: string;
+    dropoffPoint: string;
+    /** ISO 8601 (ex. "2026-06-04T07:30:00.000Z"). */
+    departureAt: string;
+    durationMin: number;
+    seatsTotal: number;
+    pricePerSeat: number;
+    options: Array<'BAGAGES' | 'ANIMAUX' | 'NON_FUMEUR' | 'MUSIQUE' | 'CLIMATISATION'>;
+    vehicleId?: string;
+  }) => api<{ trip: ApiTrip }>('/trips', { body: data }),
+
   /* ---- Auth ---- */
   sendOtp: (phone: string) =>
-    api<{ message: string; expiresAt: string }>('/auth/send-otp', { body: { phone }, noAuth: true }),
+    api<{
+      message: string;
+      expiresAt: string;
+      cooldownUntil: string;
+      /** Présent uniquement en dev+mock (OTP_PROVIDER=mock côté backend). */
+      devCode?: string;
+    }>('/auth/send-otp', { body: { phone }, noAuth: true }),
 
   register: (data: {
     phone: string; otpCode: string; firstName: string; lastName: string;
@@ -165,4 +207,108 @@ export const ApiClient = {
     ),
 
   me: () => api<{ user: ApiUser }>('/me'),
+
+  /** Profil complet (stats + statuts KYC). Endpoint identique à `me()` mais typage enrichi. */
+  meFull: () => api<{ user: ApiUserFull }>('/me'),
+
+  /** Révoque la session backend (refresh token). Idempotent côté serveur. */
+  logout: (refreshToken: string) =>
+    api<{ ok: true }>('/auth/logout', { body: { refreshToken }, noAuth: true }),
+
+  /** Déclenche une alerte SOS — enregistrée en DB + loggée côté backend. */
+  triggerSos: (data: {
+    action: 'CALL_POLICE' | 'CALL_GENDARMERIE' | 'CALL_AMBULANCE' | 'CALL_SBS_SUPPORT' | 'SHARE_LOCATION';
+    tripId?: string;
+    latitude?: number;
+    longitude?: number;
+  }) => api<{ alert: ApiSosAlert }>('/sos', { body: data }),
+
+  /* ---- Bookings ---- */
+  createBooking: (data: { tripId: string; seats: number }) =>
+    api<{ booking: ApiBooking }>('/bookings', { body: data }),
+
+  myBookings: () =>
+    api<{ bookings: ApiBookingWithTrip[] }>('/bookings/mine'),
+
+  cancelBooking: (id: string) =>
+    api<{ booking: ApiBooking }>(`/bookings/${id}/cancel`, { method: 'POST' }),
+
+  /* ---- Conversations / messagerie ---- */
+  getConversations: () =>
+    api<{ conversations: ApiConversation[] }>('/conversations'),
+
+  getMessages: (conversationId: string) =>
+    api<{ messages: ApiMessage[] }>(`/conversations/${conversationId}/messages`),
+
+  sendMessage: (conversationId: string, content: string) =>
+    api<{ message: ApiMessage }>(`/conversations/${conversationId}/messages`, { body: { content } }),
 };
+
+/* ---- Conversation types ---- */
+
+export type ApiTrustLevel = 'BASIC' | 'VERIFIED' | 'PREMIUM';
+export type ApiMessageSender = 'PASSENGER' | 'DRIVER' | 'SYSTEM';
+
+export interface ApiMessage {
+  id: string;
+  conversationId: string;
+  senderId: string | null;
+  senderType: ApiMessageSender;
+  content: string;
+  readAt: string | null;
+  sentAt: string;
+}
+
+export interface ApiConversation {
+  id: string;
+  tripId: string;
+  driverId: string;
+  passengerId: string;
+  lastMessageAt: string;
+  createdAt: string;
+  trip: { fromCity: string; toCity: string; departureAt: string };
+  driver: { id: string; firstName: string; lastName: string; trustLevel: ApiTrustLevel };
+  passenger: { id: string; firstName: string; lastName: string; trustLevel: ApiTrustLevel };
+  /** Le backend renvoie le DERNIER message (take: 1). */
+  messages: ApiMessage[];
+}
+
+/* ---- Booking types ---- */
+
+export interface ApiBooking {
+  id: string;
+  reference: string;       // ex. "SBS-A7K9-2X4M"
+  tripId: string;
+  passengerId: string;
+  seats: number;
+  basePrice: number;       // F CFA — prix par place × seats
+  serviceFee: number;      // F CFA — commission fixe
+  totalAmount: number;     // basePrice + serviceFee
+  driverEarning: number;
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  createdAt: string;
+  cancelledAt?: string | null;
+}
+
+export interface ApiBookingWithTrip extends ApiBooking {
+  trip: ApiTrip & {
+    driver: { firstName: string; lastName: string; trustLevel: 'BASIC' | 'VERIFIED' | 'PREMIUM' };
+  };
+  payment?: unknown;
+}
+
+/** Trajet retourné par GET /trips/mine — inclut les réservations actives. */
+export interface ApiDriverTrip extends ApiTrip {
+  bookings: Array<{ id: string; seats: number; status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' }>;
+}
+
+/** Alerte SOS retournée par POST /sos. */
+export interface ApiSosAlert {
+  id: string;
+  userId: string;
+  tripId: string | null;
+  action: 'CALL_POLICE' | 'CALL_GENDARMERIE' | 'CALL_AMBULANCE' | 'CALL_SBS_SUPPORT' | 'SHARE_LOCATION';
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+}

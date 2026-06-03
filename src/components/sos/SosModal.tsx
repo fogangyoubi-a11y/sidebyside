@@ -2,12 +2,26 @@ import { useEffect, useState } from 'react';
 import { X, Siren, MapPin, AlertTriangle, Loader2, CheckCircle2, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { EMERGENCY_CONTACTS, telUrl } from '@/lib/sos';
+import { ApiClient } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import type { SosEmergency } from '@/lib/sos';
+import type { SosAction } from '@/lib/types';
 
 interface SosModalProps {
   onClose: () => void;
+  /** ID du trajet en cours si l'alerte est déclenchée depuis un contexte de voyage. */
+  tripId?: string;
 }
+
+/** Mapping action UI (kebab-case) → enum backend (UPPER_SNAKE). */
+const ACTION_TO_API: Record<SosAction, 'CALL_POLICE' | 'CALL_GENDARMERIE' | 'CALL_AMBULANCE' | 'CALL_SBS_SUPPORT' | 'SHARE_LOCATION'> = {
+  'call-police':      'CALL_POLICE',
+  'call-gendarmerie': 'CALL_GENDARMERIE',
+  'call-ambulance':   'CALL_AMBULANCE',
+  'call-sbs-support': 'CALL_SBS_SUPPORT',
+  'share-location':   'SHARE_LOCATION',
+};
 
 const toneClasses: Record<SosEmergency['tone'], { bg: string; ring: string; text: string }> = {
   red:    { bg: 'bg-sbs-red text-white',           ring: 'ring-sbs-red/30',    text: 'text-sbs-red' },
@@ -16,10 +30,27 @@ const toneClasses: Record<SosEmergency['tone'], { bg: string; ring: string; text
   green:  { bg: 'bg-sbs-green text-white',         ring: 'ring-emerald-300',   text: 'text-sbs-green' },
 };
 
-export function SosModal({ onClose }: SosModalProps) {
+export function SosModal({ onClose, tripId }: SosModalProps) {
+  const { isAuthenticated } = useAuth();
   const [sharingLocation, setSharingLocation] = useState(false);
   const [locationShared, setLocationShared] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  /**
+   * Fire-and-forget : enregistre l'alerte SOS côté backend sans bloquer
+   * l'action utilisateur (`tel:` ou partage de position). Silencieux si
+   * l'utilisateur n'est pas connecté ou si le réseau échoue — l'urgence
+   * passe AVANT le logging.
+   */
+  function logSosAlert(action: SosAction, coords?: { latitude: number; longitude: number }) {
+    if (!isAuthenticated) return;
+    ApiClient.triggerSos({
+      action: ACTION_TO_API[action],
+      tripId,
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    }).catch(() => { /* silencieux — l'urgence passe avant */ });
+  }
 
   // Empêcher le scroll de la page derrière
   useEffect(() => {
@@ -49,6 +80,8 @@ export function SosModal({ onClose }: SosModalProps) {
         const url = `https://maps.google.com/?q=${latitude},${longitude}`;
         setSharingLocation(false);
         setLocationShared(url);
+        // Loggue l'alerte avec les coordonnées (fire-and-forget)
+        logSosAlert('share-location', { latitude, longitude });
       },
       (err) => {
         setSharingLocation(false);
@@ -173,7 +206,12 @@ export function SosModal({ onClose }: SosModalProps) {
                 <li key={c.id}>
                   <a
                     href={c.phone ? telUrl(c.phone) : undefined}
-                    onClick={onClose}
+                    onClick={() => {
+                      // Loggue l'alerte AVANT de fermer + de laisser le navigateur
+                      // composer le numéro. Fire-and-forget — n'attend pas la réponse.
+                      logSosAlert(c.id);
+                      onClose();
+                    }}
                     className="flex items-center gap-3 rounded-card-lg border-2 border-sbs-border bg-white p-3.5 transition-all hover:border-sbs-red/30 hover:shadow-soft"
                   >
                     <span className={cn('grid h-12 w-12 shrink-0 place-items-center rounded-card text-2xl', tone.bg)} aria-hidden>

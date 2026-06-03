@@ -23,9 +23,14 @@ import {
   type OtpState,
   type TrustLevel,
 } from '@/lib/security';
-import { consumePendingAction } from '@/hooks/useAuth';
-import { setTokens } from '@/lib/api';
+import { consumePendingAction, useAuth } from '@/hooks/useAuth';
+import { ApiClient, ApiError } from '@/lib/api';
 import type { Screen, Role } from '@/lib/types';
+
+/** Construit le numéro E.164 (+237XXXXXXXXX) à partir de la saisie locale. */
+function toE164(local: string): string {
+  return '+237' + local.replace(/\D/g, '');
+}
 
 interface OnboardingProps {
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
@@ -79,8 +84,82 @@ const initialForm: FormState = {
 export function Onboarding({ onNavigate }: OnboardingProps) {
   const [step, setStep] = useState<Step>('role');
   const [form, setForm] = useState<FormState>(initialForm);
+  // OTP code reçu en dev (OTP_PROVIDER=mock) — affiché dans un banner au step OTP.
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+  // Erreur d'API (sendOtp ou register), affichée sous le bouton "Suivant".
+  const [apiError, setApiError] = useState<string | null>(null);
+  // Pendant un appel API (loading sur le bouton "Suivant").
+  const [submitting, setSubmitting] = useState(false);
+
+  const { register } = useAuth();
 
   const update = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
+
+  /** Phone step → POST /auth/send-otp puis transition vers 'otp'. */
+  async function handleSendOtp() {
+    setApiError(null);
+    setSubmitting(true);
+    try {
+      const res = await ApiClient.sendOtp(toE164(form.phoneLocal));
+      setDevOtpCode(res.devCode ?? null);
+      update({ otp: createOtpState() });
+      setStep('otp');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.message);
+      } else {
+        setApiError('Impossible d\'envoyer le code. Vérifiez que le backend tourne.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /** Renvoi du code OTP (cooldown 60s côté backend). */
+  async function handleResendOtp() {
+    setApiError(null);
+    try {
+      const res = await ApiClient.sendOtp(toE164(form.phoneLocal));
+      setDevOtpCode(res.devCode ?? null);
+      update({ otp: createOtpState() });
+    } catch (err) {
+      if (err instanceof ApiError) setApiError(err.message);
+    }
+  }
+
+  /**
+   * Dernier step KYC → POST /auth/register puis transition vers 'done'.
+   * Si l'OTP est invalide ou expiré, le backend renvoie 401/400 et on revient
+   * sur le step OTP pour permettre à l'utilisateur de retenter.
+   */
+  async function handleRegister() {
+    setApiError(null);
+    setSubmitting(true);
+    try {
+      await register({
+        phone: toE164(form.phoneLocal),
+        otpCode: form.otp.code.join(''),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        birthDate: form.birthDate,
+        password: form.password,
+        role: form.role === 'driver' ? 'DRIVER' : 'PASSENGER',
+      });
+      setStep('done');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiError(err.message);
+        // OTP invalide / expiré → renvoie l'utilisateur au step OTP
+        if (err.status === 401 || (err.status === 400 && /code|otp/i.test(err.message))) {
+          setStep('otp');
+        }
+      } else {
+        setApiError('Inscription impossible. Vérifiez votre connexion.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sbs-blue-light via-sbs-cream to-sbs-yellow-light">
@@ -102,10 +181,9 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
               phoneLocal={form.phoneLocal}
               onPhone={(phoneLocal) => update({ phoneLocal })}
               onBack={() => setStep('role')}
-              onNext={() => {
-                update({ otp: createOtpState() });
-                setStep('otp');
-              }}
+              onNext={handleSendOtp}
+              submitting={submitting}
+              apiError={apiError}
             />
           )}
           {step === 'otp' && (
@@ -113,9 +191,11 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
               phoneLocal={form.phoneLocal}
               otp={form.otp}
               onOtp={(otp) => update({ otp })}
-              onResend={() => update({ otp: createOtpState() })}
+              onResend={handleResendOtp}
               onBack={() => setStep('phone')}
-              onNext={() => setStep('identity')}
+              onNext={() => { setApiError(null); setStep('identity'); }}
+              devCode={devOtpCode}
+              apiError={apiError}
             />
           )}
           {step === 'identity' && (
@@ -147,7 +227,12 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
               form={form}
               onUpdate={update}
               onBack={() => setStep('kyc-cni')}
-              onNext={() => setStep(form.role === 'driver' ? 'kyc-driver' : 'done')}
+              onNext={() => {
+                if (form.role === 'driver') setStep('kyc-driver');
+                else handleRegister();
+              }}
+              submitting={submitting}
+              apiError={apiError}
             />
           )}
           {step === 'kyc-driver' && form.role === 'driver' && (
@@ -155,7 +240,9 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
               form={form}
               onUpdate={update}
               onBack={() => setStep('kyc-selfie')}
-              onNext={() => setStep('done')}
+              onNext={handleRegister}
+              submitting={submitting}
+              apiError={apiError}
             />
           )}
           {step === 'done' && (
@@ -349,8 +436,9 @@ function RoleCard({ active, onClick, icon, color, title, desc, perks }: {
 
 /* ----------------------------- 2. PHONE ----------------------------- */
 
-function PhoneStep({ phoneLocal, onPhone, onBack, onNext }: {
+function PhoneStep({ phoneLocal, onPhone, onBack, onNext, submitting, apiError }: {
   phoneLocal: string; onPhone: (v: string) => void; onBack: () => void; onNext: () => void;
+  submitting?: boolean; apiError?: string | null;
 }) {
   const validation = validatePhoneCM(phoneLocal);
 
@@ -375,16 +463,26 @@ function PhoneStep({ phoneLocal, onPhone, onBack, onNext }: {
         </p>
       </div>
 
-      <NavRow onBack={onBack} onNext={onNext} disabled={!validation.valid} />
+      {apiError && (
+        <div role="alert" className="mt-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+          <p className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {apiError}
+          </p>
+        </div>
+      )}
+
+      <NavRow onBack={onBack} onNext={onNext} disabled={!validation.valid || submitting} nextLabel={submitting ? 'Envoi…' : 'Envoyer le code'} />
     </StepWrapper>
   );
 }
 
 /* ----------------------------- 3. OTP ----------------------------- */
 
-function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext }: {
+function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext, devCode, apiError }: {
   phoneLocal: string; otp: OtpState; onOtp: (o: OtpState) => void;
   onResend: () => void; onBack: () => void; onNext: () => void;
+  devCode?: string | null; apiError?: string | null;
 }) {
   const validation = validatePhoneCM(phoneLocal);
   const complete = isOtpComplete(otp);
@@ -402,7 +500,29 @@ function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext }: {
       icon={<KeyRound className="h-7 w-7" />}
       iconColor="blue"
     >
+      {devCode && (
+        <div className="mb-4 rounded-card border-2 border-sbs-yellow bg-sbs-yellow-light/40 p-3 text-[12px] leading-relaxed text-sbs-yellow-dark">
+          <p className="flex items-start gap-2">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              <strong>Mode démo</strong> — code OTP : <strong className="font-mono text-base tracking-widest">{devCode}</strong>
+              <br />
+              En production, un vrai SMS sera envoyé via Twilio / Africa's Talking.
+            </span>
+          </p>
+        </div>
+      )}
+
       <OtpInput6 state={otp} onChange={onOtp} />
+
+      {apiError && (
+        <div role="alert" className="mt-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+          <p className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {apiError}
+          </p>
+        </div>
+      )}
 
       <p className="mt-5 text-center text-xs text-sbs-muted">
         Pas reçu de SMS ?{' '}
@@ -553,10 +673,13 @@ function KycCniStep({ form, onUpdate, onBack, onNext }: {
 
 /* ----------------------------- 7. KYC SELFIE ----------------------------- */
 
-function KycSelfieStep({ form, onUpdate, onBack, onNext }: {
+function KycSelfieStep({ form, onUpdate, onBack, onNext, submitting, apiError }: {
   form: FormState; onUpdate: (p: Partial<FormState>) => void; onBack: () => void; onNext: () => void;
+  submitting?: boolean; apiError?: string | null;
 }) {
   const valid = !!form.selfie;
+  // Pour un passager, ce step est le dernier avant l'inscription — change le label du bouton.
+  const isFinal = form.role === 'passenger';
 
   return (
     <StepWrapper
@@ -586,15 +709,30 @@ function KycSelfieStep({ form, onUpdate, onBack, onNext }: {
         </div>
       </div>
 
-      <NavRow onBack={onBack} onNext={onNext} disabled={!valid} />
+      {apiError && (
+        <div role="alert" className="mt-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+          <p className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {apiError}
+          </p>
+        </div>
+      )}
+
+      <NavRow
+        onBack={onBack}
+        onNext={onNext}
+        disabled={!valid || submitting}
+        nextLabel={submitting ? 'Création du compte…' : isFinal ? 'Créer mon compte' : 'Suivant'}
+      />
     </StepWrapper>
   );
 }
 
 /* ----------------------------- 8. KYC DRIVER (chauffeur uniquement) ----------------------------- */
 
-function KycDriverStep({ form, onUpdate, onBack, onNext }: {
+function KycDriverStep({ form, onUpdate, onBack, onNext, submitting, apiError }: {
   form: FormState; onUpdate: (p: Partial<FormState>) => void; onBack: () => void; onNext: () => void;
+  submitting?: boolean; apiError?: string | null;
 }) {
   const valid = !!form.license && !!form.vehicleRegistration && !!form.vehiclePhoto;
 
@@ -636,7 +774,21 @@ function KycDriverStep({ form, onUpdate, onBack, onNext }: {
         </p>
       </div>
 
-      <NavRow onBack={onBack} onNext={onNext} disabled={!valid} nextLabel="Soumettre pour vérification" />
+      {apiError && (
+        <div role="alert" className="mt-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+          <p className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {apiError}
+          </p>
+        </div>
+      )}
+
+      <NavRow
+        onBack={onBack}
+        onNext={onNext}
+        disabled={!valid || submitting}
+        nextLabel={submitting ? 'Création du compte…' : 'Créer mon compte chauffeur'}
+      />
     </StepWrapper>
   );
 }
@@ -647,23 +799,8 @@ function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Scree
   // À ce stade, identityVerified est en cours — donc niveau Basic, avec annonce "Vérifié sous 24h"
   const initialLevel: TrustLevel = 'basic';
 
-  // Simulation locale d'une session (front-only, le backend prendra le relais
-  // quand on branchera vraiment /auth/register). On stocke un faux token + un
-  // user pour que `useAuth` retourne isAuthenticated=true.
-  // useEffect non utilisé ici car appelé une seule fois au montage volontairement.
-  if (typeof window !== 'undefined' && !localStorage.getItem('sbs:user')) {
-    const fakeUser = {
-      id: 'local-' + Date.now(),
-      phone: '+237' + form.phoneLocal.replace(/\D/g, ''),
-      firstName: form.firstName,
-      lastName: form.lastName,
-      role: (form.role ?? 'PASSENGER').toUpperCase() as 'PASSENGER' | 'DRIVER',
-      trustLevel: 'BASIC' as const,
-    };
-    localStorage.setItem('sbs:user', JSON.stringify(fakeUser));
-    // Faux token — sera remplacé par un vrai JWT quand le backend sera branché
-    setTokens('local-access-' + Date.now(), 'local-refresh-' + Date.now());
-  }
+  // Note : useAuth a déjà stocké user + tokens via `register()` au step KYC précédent.
+  // Aucun side-effect nécessaire ici, juste l'affichage.
 
   // Si l'utilisateur essayait de réserver avant l'inscription, on reprend là où il en était
   const pending = consumePendingAction();

@@ -7,8 +7,19 @@ import { Avatar } from '@/components/ui/Avatar';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { TRIPS } from '@/data/trips';
+import { cn, formatDuration } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
+
+/** Min prix + min durée pour un axe donné, calculés depuis les vraies données. */
+function getRouteStats(fromId: string, toId: string): { minPrice: number; minDuration: number } | null {
+  const matches = TRIPS.filter((t) => t.from.id === fromId && t.to.id === toId);
+  if (matches.length === 0) return null;
+  return {
+    minPrice: Math.min(...matches.map((t) => t.pricePerSeat)),
+    minDuration: Math.min(...matches.map((t) => t.durationMin)),
+  };
+}
 
 interface LandingPageProps {
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
@@ -43,7 +54,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <Footer />
 
       {/* Barre de navigation principale en bas (style BlaBlaCar / Uber) */}
-      <BottomNav onNavigate={onNavigate} messagesUnread={3} />
+      <BottomNav onNavigate={onNavigate} messagesUnread={isAuthenticated ? 3 : 0} />
 
       {/* Modal d'auth gate — partagé pour toutes les actions qui requièrent un compte */}
       {authGate && (
@@ -99,7 +110,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onNavigate('auth')}
+            onClick={() => onNavigate('login')}
             className="hidden sm:inline-flex"
           >
             Connexion
@@ -301,9 +312,15 @@ function HowItWorks() {
 /* ----------------------------- ROUTES ----------------------------- */
 
 function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
+  // Pour les axes "available", on dérive prix mini + durée mini depuis les vraies données TRIPS,
+  // pour rester cohérent avec ce que l'utilisateur verra à l'écran Recherche.
+  const douBaf = getRouteStats('douala', 'bafoussam');
+  const bafDou = getRouteStats('bafoussam', 'douala');
+
   const routes = [
-    { from: 'Douala', to: 'Bafoussam', fromId: 'douala', toId: 'bafoussam', price: 3500, duration: '4 h 15', popular: true, available: true },
-    { from: 'Bafoussam', to: 'Douala', fromId: 'bafoussam', toId: 'douala', price: 3500, duration: '4 h 00', popular: true, available: true },
+    { from: 'Douala', to: 'Bafoussam', fromId: 'douala', toId: 'bafoussam', price: douBaf?.minPrice ?? 3500, duration: douBaf ? formatDuration(douBaf.minDuration) : '4 h 15', popular: true, available: true },
+    { from: 'Bafoussam', to: 'Douala', fromId: 'bafoussam', toId: 'douala', price: bafDou?.minPrice ?? 3500, duration: bafDou ? formatDuration(bafDou.minDuration) : '4 h 00', popular: true, available: true },
+    // Axes "Bientôt" — prix indicatifs, pas encore de trajets en base.
     { from: 'Douala', to: 'Yaoundé', fromId: 'douala', toId: 'yaounde', price: 3000, duration: '3 h 30', popular: false, available: false },
     { from: 'Bafoussam', to: 'Bamenda', fromId: 'bafoussam', toId: 'bamenda', price: 2000, duration: '1 h 30', popular: false, available: false },
     { from: 'Douala', to: 'Kribi', fromId: 'douala', toId: 'kribi', price: 2500, duration: '2 h 45', popular: false, available: false },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, ShieldCheck, Lock, CheckCircle2, MapPin,
   Clock, User, Loader2, Phone, Gift, Users as UsersIcon, Baby, Plus, Trash2, AlertTriangle, IdCard,
@@ -19,7 +19,9 @@ import {
 } from '@/lib/booking';
 import { cn, formatDate, formatTime, formatXAF } from '@/lib/utils';
 import { validatePhoneCM } from '@/lib/security';
-import type { Screen, PaymentMethod, BookingMode, Beneficiary, Child, ChildRelation } from '@/lib/types';
+import { ApiClient, ApiError } from '@/lib/api';
+import { adaptApiTrip } from '@/lib/tripAdapter';
+import type { Screen, PaymentMethod, BookingMode, Beneficiary, Child, ChildRelation, Trip } from '@/lib/types';
 
 interface BookingProps {
   tripId: string;
@@ -42,7 +44,11 @@ const RELATIONS: { id: ChildRelation; label: string }[] = [
 ];
 
 export function Booking({ tripId, seats, onNavigate }: BookingProps) {
-  const trip = findTrip(tripId);
+  const mockTrip = findTrip(tripId);
+  const [liveTrip, setLiveTrip] = useState<Trip | null>(null);
+  const [loading, setLoading] = useState<boolean>(!mockTrip);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [step, setStep] = useState<Step>('who');
   const [bookingMode, setBookingMode] = useState<BookingMode>('self');
 
@@ -58,12 +64,41 @@ export function Booking({ tripId, seats, onNavigate }: BookingProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [bookingRef] = useState(() => generateBookingRef());
+  // Référence de réservation : utilisée comme valeur initiale pour la page de succès.
+  // Sera remplacée par la vraie référence backend une fois le POST /bookings réussi.
+  const [bookingRef, setBookingRef] = useState<string>(() => generateBookingRef());
+  const [payError, setPayError] = useState<string | null>(null);
+
+  // Fallback API si le trajet n'est pas dans les mocks (id = CUID Prisma).
+  useEffect(() => {
+    if (mockTrip) return;
+    let cancelled = false;
+    setLoading(true);
+    ApiClient.getTrip(tripId)
+      .then(({ trip }) => { if (!cancelled) setLiveTrip(adaptApiTrip(trip)); })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err instanceof ApiError ? err.message : 'Trajet introuvable');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [tripId, mockTrip]);
+
+  const trip = mockTrip ?? liveTrip;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-sbs-cream p-8 text-center">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin text-sbs-blue" />
+        <p className="mt-3 text-sm text-sbs-muted">Chargement du trajet…</p>
+      </div>
+    );
+  }
 
   if (!trip) {
     return (
       <div className="min-h-screen bg-sbs-cream p-8 text-center">
-        <p className="text-sbs-muted">Trajet introuvable.</p>
+        <p className="text-sbs-muted">{loadError ?? 'Trajet introuvable.'}</p>
         <Button variant="primary" size="md" onClick={() => onNavigate('search')} className="mt-4 rounded-pill">
           Retour à la recherche
         </Button>
@@ -78,12 +113,39 @@ export function Booking({ tripId, seats, onNavigate }: BookingProps) {
 
   const departure = new Date(trip.departureAt);
 
-  function handlePay() {
+  /**
+   * Tente de créer la réservation via POST /api/bookings (uniquement si le trajet
+   * vient de la DB — id CUID). Pour les trajets mock, on simule comme avant.
+   * Quand le paiement Mobile Money / carte sera branché, ce handler appellera
+   * l'endpoint paiement après la création de booking.
+   */
+  async function handlePay() {
     setProcessing(true);
-    setTimeout(() => {
-      setProcessing(false);
+    setPayError(null);
+
+    const isLive = !mockTrip; // trip vient de l'API
+    if (!isLive) {
+      // Trajet mock — comportement démo inchangé
+      setTimeout(() => {
+        setProcessing(false);
+        setStep('success');
+      }, 2500);
+      return;
+    }
+
+    try {
+      const { booking } = await ApiClient.createBooking({ tripId, seats });
+      setBookingRef(booking.reference);
       setStep('success');
-    }, 2500);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setPayError(err.message);
+      } else {
+        setPayError('Réservation impossible. Réessayez dans un instant.');
+      }
+    } finally {
+      setProcessing(false);
+    }
   }
 
   return (
@@ -184,14 +246,40 @@ export function Booking({ tripId, seats, onNavigate }: BookingProps) {
         )}
 
         {step === 'pay' && paymentMethod && (
-          <PaymentForm
-            method={paymentMethod}
-            phone={phone}
-            onPhoneChange={setPhone}
-            totalAmount={price.total}
-            processing={processing}
-            onPay={handlePay}
-          />
+          <>
+            {/* Banner DEV — à retirer dès que CinetPay / Campay seront branchés.
+                La réservation côté DB est créée, mais le débit Mobile Money / carte est simulé. */}
+            <div
+              role="alert"
+              className="mb-4 flex items-start gap-2.5 rounded-card border-2 border-sbs-yellow bg-sbs-yellow-light/40 p-3 text-[12px] leading-relaxed text-sbs-yellow-dark"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <strong>Démo — aucun débit réel.</strong>{' '}
+                Pour les trajets de la base de données, la réservation est créée
+                (statut PENDING). Le débit Mobile Money / carte sera ajouté via CinetPay
+                ou Campay avant la mise en production.
+              </div>
+            </div>
+
+            {payError && (
+              <div role="alert" className="mb-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+                <p className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {payError}
+                </p>
+              </div>
+            )}
+
+            <PaymentForm
+              method={paymentMethod}
+              phone={phone}
+              onPhoneChange={setPhone}
+              totalAmount={price.total}
+              processing={processing}
+              onPay={handlePay}
+            />
+          </>
         )}
 
         {step === 'success' && (
@@ -929,5 +1017,3 @@ function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, book
   );
 }
 
-// Unused safe-import warnings
-void AlertTriangle;

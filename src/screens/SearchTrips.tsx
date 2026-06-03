@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { CITIES, findCity } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
-import { ApiClient, type ApiTrip } from '@/lib/api';
+import { ApiClient } from '@/lib/api';
+import { adaptApiTrip } from '@/lib/tripAdapter';
 import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL, isBargainPrice } from '@/lib/category';
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
@@ -515,66 +516,5 @@ function EmptyResults({ onNavigate }: { onNavigate: (s: Screen, params?: Record<
   );
 }
 
-/* ===================================================================
-   Adaptateur ApiTrip → Trip (le type "local" attendu par les composants)
-   =================================================================== */
-
-const API_OPTION_TO_LOCAL: Record<ApiTrip['options'][number], TripOption> = {
-  BAGAGES: 'bagages',
-  ANIMAUX: 'animaux',
-  NON_FUMEUR: 'non-fumeur',
-  MUSIQUE: 'musique',
-  CLIMATISATION: 'climatisation',
-};
-
-const API_TRUST_TO_LOCAL: Record<ApiTrip['driver']['trustLevel'], 'basic' | 'verified' | 'premium'> = {
-  BASIC: 'basic',
-  VERIFIED: 'verified',
-  PREMIUM: 'premium',
-};
-
-function adaptApiTrip(a: ApiTrip): Trip {
-  const fromCity = findCity(a.fromCity) ?? { id: a.fromCity, name: a.fromCity, region: '' };
-  const toCity = findCity(a.toCity) ?? { id: a.toCity, name: a.toCity, region: '' };
-  return {
-    id: a.id,
-    driver: {
-      id: a.driver.id,
-      name: `${a.driver.firstName} ${a.driver.lastName}`,
-      rating: a.driver.ratingAvg ?? 5,
-      tripsCompleted: a.driver.tripsCompleted,
-      yearsActive: 0,
-      car: {
-        model: a.vehicle?.model ?? 'Véhicule',
-        color: a.vehicle?.color ?? '',
-        plate: maskPlate(a.vehicle?.plate ?? ''),
-        // L'API ne renvoie pas encore ces champs — fallback raisonnable
-        type: 'berline',
-        year: new Date().getFullYear() - 3,
-      },
-      verified: a.driver.trustLevel !== 'BASIC',
-      trustLevel: API_TRUST_TO_LOCAL[a.driver.trustLevel],
-    },
-    from: fromCity,
-    to: toCity,
-    pickupPoint: a.pickupPoint,
-    dropoffPoint: a.dropoffPoint,
-    departureAt: a.departureAt,
-    durationMin: a.durationMin,
-    seatsTotal: a.seatsTotal,
-    seatsLeft: a.seatsLeft,
-    pricePerSeat: a.pricePerSeat,
-    options: a.options.map((o) => API_OPTION_TO_LOCAL[o]),
-    status: a.status === 'AVAILABLE' ? 'available'
-      : a.status === 'FULL' ? 'full'
-      : a.status === 'DEPARTED' ? 'departed'
-      : a.status === 'COMPLETED' ? 'completed'
-      : 'cancelled',
-  };
-}
-
-/** Masque une plaque type "LT 489 AA" en "LT 4** AA". */
-function maskPlate(plate: string): string {
-  if (plate.length < 5) return plate;
-  return plate.replace(/(\S+\s\d)\d+/, '$1**');
-}
+/* Adaptateur ApiTrip → Trip déplacé dans `@/lib/tripAdapter` pour
+   être partagé avec TripDetail + Booking (recherche live d'un trajet par id). */

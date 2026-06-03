@@ -1,4 +1,5 @@
-import { LogOut, Settings, Bell, ShieldCheck, FileText, HelpCircle, Smartphone, Star, Car, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LogOut, Settings, Bell, ShieldCheck, FileText, HelpCircle, Smartphone, Star, Car, ChevronRight, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { SbsLogo } from '@/components/ui/SbsLogo';
@@ -6,6 +7,7 @@ import { TrustBadge } from '@/components/security/TrustBadge';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { useAuth } from '@/hooks/useAuth';
+import { ApiClient, type ApiUserFull } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
 
@@ -15,6 +17,18 @@ interface ProfileProps {
 
 export function Profile({ onNavigate }: ProfileProps) {
   const { isAuthenticated, user, logout } = useAuth();
+  const [fullUser, setFullUser] = useState<ApiUserFull | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // Charge le profil complet (stats + statuts KYC) au montage.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    ApiClient.meFull()
+      .then(({ user }) => { if (!cancelled) setFullUser(user); })
+      .catch(() => { /* silencieux — on retombe sur les infos light de useAuth */ });
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   if (!isAuthenticated || !user) {
     return (
@@ -27,11 +41,18 @@ export function Profile({ onNavigate }: ProfileProps) {
     );
   }
 
-  const trustLevel = (user.trustLevel.toLowerCase() as 'basic' | 'verified' | 'premium');
+  // Source des données : on préfère `fullUser` (riche), avec fallback sur `user` (léger).
+  const display = fullUser ?? user;
+  const trustLevel = (display.trustLevel.toLowerCase() as 'basic' | 'verified' | 'premium');
 
-  function handleLogout() {
-    logout();
-    onNavigate('landing');
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+      onNavigate('landing');
+    }
   }
 
   return (
@@ -48,21 +69,51 @@ export function Profile({ onNavigate }: ProfileProps) {
         {/* Carte de profil */}
         <section className="rounded-card-lg border border-sbs-border bg-white p-5 shadow-card sm:p-6">
           <div className="flex items-center gap-4">
-            <Avatar name={`${user.firstName} ${user.lastName}`} size="xl" />
+            <Avatar name={`${display.firstName} ${display.lastName}`} size="xl" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-display text-xl font-extrabold text-sbs-dark">
-                  {user.firstName} {user.lastName}
+                  {display.firstName} {display.lastName}
                 </span>
                 <TrustBadge level={trustLevel} size="sm" />
               </div>
-              <div className="mt-1 font-mono text-xs text-sbs-muted">{user.phone}</div>
+              <div className="mt-1 font-mono text-xs text-sbs-muted">{display.phone}</div>
               <div className="mt-1 flex items-center gap-1 text-[11px] text-sbs-muted">
-                {user.role === 'DRIVER' ? <Car className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
-                {user.role === 'DRIVER' ? 'Chauffeur' : 'Passager'}
+                {display.role === 'DRIVER' ? <Car className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
+                {display.role === 'DRIVER' ? 'Chauffeur' : 'Passager'}
               </div>
             </div>
           </div>
+
+          {/* Stats — uniquement quand fullUser chargé */}
+          {fullUser && (
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-sbs-border-soft pt-4">
+              <Stat
+                icon={<Star className="h-4 w-4" />}
+                label="Note moyenne"
+                value={fullUser.ratingAvg != null ? fullUser.ratingAvg.toFixed(1) : '—'}
+              />
+              <Stat
+                icon={<Car className="h-4 w-4" />}
+                label="Trajets effectués"
+                value={String(fullUser.tripsCompleted)}
+              />
+            </div>
+          )}
+
+          {!fullUser && (
+            <div className="mt-3 flex items-center gap-2 border-t border-sbs-border-soft pt-3 text-[11px] text-sbs-muted">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Chargement des statistiques…
+            </div>
+          )}
+
+          {/* Bio si présente */}
+          {fullUser?.bio && (
+            <div className="mt-4 rounded-card border border-sbs-border-soft bg-sbs-cream p-3">
+              <p className="text-[12px] italic text-sbs-dark">« {fullUser.bio} »</p>
+            </div>
+          )}
         </section>
 
         {/* Récap niveau de confiance */}
@@ -83,6 +134,17 @@ export function Profile({ onNavigate }: ProfileProps) {
             <p className="mt-2 text-[11px] text-sbs-blue">
               Effectuez 20 trajets sans incident pour gagner le badge Premium.
             </p>
+          )}
+
+          {/* Détail KYC quand on a fullUser */}
+          {fullUser && (
+            <ul className="mt-3 space-y-1.5 border-t border-sbs-blue/15 pt-3 text-[11px]">
+              <KycRow ok={fullUser.identityVerified} label="Identité (CNI)" />
+              <KycRow ok={fullUser.selfieMatched} label="Selfie vérifié" />
+              {display.role === 'DRIVER' && (
+                <KycRow ok={fullUser.licenseVerified} label="Permis de conduire" />
+              )}
+            </ul>
           )}
         </section>
 
@@ -126,10 +188,11 @@ export function Profile({ onNavigate }: ProfileProps) {
           variant="ghost"
           size="lg"
           onClick={handleLogout}
+          disabled={loggingOut}
           className="mt-6 w-full rounded-pill text-sbs-red hover:bg-red-50"
         >
-          <LogOut className="h-4 w-4" />
-          Se déconnecter
+          {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          {loggingOut ? 'Déconnexion…' : 'Se déconnecter'}
         </Button>
 
         <p className="mt-4 text-center text-[10px] text-sbs-muted">
@@ -137,8 +200,34 @@ export function Profile({ onNavigate }: ProfileProps) {
         </p>
       </main>
 
-      <BottomNav active="profile" onNavigate={onNavigate} messagesUnread={3} />
+      <BottomNav active="profile" onNavigate={onNavigate} messagesUnread={0} />
     </div>
+  );
+}
+
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-card border border-sbs-border-soft bg-sbs-cream px-3 py-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-card bg-sbs-blue-light text-sbs-blue">
+        {icon}
+      </span>
+      <div>
+        <div className="font-display text-base font-extrabold leading-tight text-sbs-dark">{value}</div>
+        <div className="text-[10px] text-sbs-muted">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function KycRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-2">
+      {ok
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-sbs-green" />
+        : <XCircle className="h-3.5 w-3.5 text-sbs-muted" />}
+      <span className={cn(ok ? 'font-semibold text-sbs-dark' : 'text-sbs-muted')}>{label}</span>
+      {!ok && <span className="ml-auto text-[10px] text-sbs-muted">À valider</span>}
+    </li>
   );
 }
 

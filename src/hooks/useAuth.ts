@@ -9,7 +9,7 @@ interface UseAuthReturn {
   loading: boolean;
   login: (phone: string, password: string) => Promise<ApiUser>;
   register: (data: Parameters<typeof ApiClient.register>[0]) => Promise<ApiUser>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -71,7 +71,13 @@ export function useAuth(): UseAuthReturn {
     return res.user;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Best-effort : on tente de révoquer la session côté backend, mais on
+    // continue avec le clear local même si ça échoue (offline, token expiré…).
+    const refresh = typeof localStorage !== 'undefined' ? localStorage.getItem('sbs:refreshToken') : null;
+    if (refresh) {
+      try { await ApiClient.logout(refresh); } catch { /* silencieux */ }
+    }
     clearTokens();
     localStorage.removeItem(USER_KEY);
     setUser(null);

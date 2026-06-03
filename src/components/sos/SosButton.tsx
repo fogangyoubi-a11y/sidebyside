@@ -13,6 +13,8 @@ interface SosButtonProps {
    * - "header"            : bouton compact pour intégration dans un header sticky
    */
   variant?: 'floating' | 'header';
+  /** Trajet en cours — contextualise l'alerte côté backend. */
+  tripId?: string;
 }
 
 /**
@@ -20,7 +22,7 @@ interface SosButtonProps {
  *  - floating : visible en permanence sur les écrans de trajet (bas-droit)
  *  - header   : intégré au header pour ne pas écraser un CTA en bas
  */
-export function SosButton({ className, label = 'SOS', variant = 'floating' }: SosButtonProps) {
+export function SosButton({ className, label = 'SOS', variant = 'floating', tripId }: SosButtonProps) {
   const [open, setOpen] = useState(false);
 
   if (variant === 'header') {
@@ -48,7 +50,7 @@ export function SosButton({ className, label = 'SOS', variant = 'floating' }: So
             }
           `}</style>
         </button>
-        {open && <SosModal onClose={() => setOpen(false)} />}
+        {open && <SosModal onClose={() => setOpen(false)} tripId={tripId} />}
       </>
     );
   }
