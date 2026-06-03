@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft, MapPin, Clock, Users, Car, Star, ShieldCheck, Briefcase, Cat,
-  Cigarette, Music, Wind, MessageCircle, Calendar, ArrowRight,
+  Cigarette, Music, Wind, MessageCircle, Calendar, ArrowRight, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -13,9 +13,11 @@ import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { findTrip } from '@/data/trips';
 import { useAuth, setPendingAction } from '@/hooks/useAuth';
+import { ApiClient, ApiError } from '@/lib/api';
+import { adaptApiTrip } from '@/lib/tripAdapter';
 import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL } from '@/lib/category';
 import { cn, formatDate, formatDuration, formatTime, formatXAF } from '@/lib/utils';
-import type { Screen, TripOption } from '@/lib/types';
+import type { Screen, Trip, TripOption } from '@/lib/types';
 
 interface TripDetailProps {
   tripId: string;
@@ -31,10 +33,30 @@ const OPTION_LABELS: Record<TripOption, { icon: typeof Briefcase; label: string 
 };
 
 export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
-  const trip = findTrip(tripId);
+  const mockTrip = findTrip(tripId);
+  const [liveTrip, setLiveTrip] = useState<Trip | null>(null);
+  const [loading, setLoading] = useState<boolean>(!mockTrip);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [seats, setSeats] = useState(1);
   const [showAuthGate, setShowAuthGate] = useState(false);
   const { isAuthenticated } = useAuth();
+
+  // Si le trajet n'est pas dans les mocks, on tente l'API (cas réel : id = CUID Prisma).
+  useEffect(() => {
+    if (mockTrip) return;
+    let cancelled = false;
+    setLoading(true);
+    ApiClient.getTrip(tripId)
+      .then(({ trip }) => { if (!cancelled) setLiveTrip(adaptApiTrip(trip)); })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err instanceof ApiError ? err.message : 'Trajet introuvable');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [tripId, mockTrip]);
+
+  const trip = mockTrip ?? liveTrip;
 
   function handleReserve() {
     if (isAuthenticated) {
@@ -46,10 +68,19 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
     setShowAuthGate(true);
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-sbs-cream p-8 text-center">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin text-sbs-blue" />
+        <p className="mt-3 text-sm text-sbs-muted">Chargement du trajet…</p>
+      </div>
+    );
+  }
+
   if (!trip) {
     return (
       <div className="min-h-screen bg-sbs-cream p-8 text-center">
-        <p className="text-sbs-muted">Trajet introuvable.</p>
+        <p className="text-sbs-muted">{loadError ?? 'Trajet introuvable.'}</p>
         <Button variant="primary" size="md" onClick={() => onNavigate('search')} className="mt-4 rounded-pill">
           Retour à la recherche
         </Button>
@@ -87,7 +118,7 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
             </div>
           </div>
           {/* SOS dans le header (mode "header") — n'écrase plus le CTA Réserver en bas */}
-          <SosButton variant="header" />
+          <SosButton variant="header" tripId={tripId} />
         </div>
       </header>
 
