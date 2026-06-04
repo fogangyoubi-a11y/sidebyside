@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, User, Car, ShieldCheck, KeyRound, Lock,
   IdCard, Camera, FileCheck, Shield, Sparkles, AlertTriangle, Smartphone, MapPin
@@ -81,17 +81,100 @@ const initialForm: FormState = {
   vehiclePhoto: null,
 };
 
+/* ============================================================
+   PERSISTENCE — survie au reload mobile
+   ============================================================
+   Sur mobile, ouvrir la camera systeme decharge la page React de
+   la memoire vive. Quand l'utilisateur revient avec sa photo, la
+   page se recharge et tout l'etat (etape, role, prenom, etc.) est
+   perdu — l'utilisateur se retrouve sur l'accueil.
+
+   Fix : on persiste l'etape + les champs texte dans localStorage a
+   chaque changement. Les File objects (photos CNI, selfie, permis)
+   ne sont PAS persistes (impossible serializer simplement) — ils
+   sont re-demandes si la page recharge, mais le reste est conserve.
+*/
+const ONBOARDING_KEY = 'sbs:onboarding';
+const ONBOARDING_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+type PersistedForm = Omit<FormState, 'cniFront' | 'cniBack' | 'selfie' | 'license' | 'vehicleRegistration' | 'vehiclePhoto'>;
+
+interface PersistedState {
+  step: Step;
+  form: PersistedForm;
+  devOtpCode: string | null;
+  savedAt: number;
+}
+
+function loadPersistedOnboarding(): PersistedState | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(ONBOARDING_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as PersistedState;
+    // Stale (>24h) → on jette
+    if (!data.savedAt || Date.now() - data.savedAt > ONBOARDING_TTL_MS) {
+      localStorage.removeItem(ONBOARDING_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedOnboarding(step: Step, form: FormState, devOtpCode: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const persistedForm: PersistedForm = {
+      role: form.role,
+      phoneLocal: form.phoneLocal,
+      otp: form.otp,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      birthDate: form.birthDate,
+      password: form.password,
+      passwordConfirm: form.passwordConfirm,
+    };
+    const data: PersistedState = { step, form: persistedForm, devOtpCode, savedAt: Date.now() };
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
+  } catch {
+    /* quota depasse ou disabled — silencieux */
+  }
+}
+
+function clearPersistedOnboarding(): void {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.removeItem(ONBOARDING_KEY); } catch { /* */ }
+}
+
 export function Onboarding({ onNavigate }: OnboardingProps) {
-  const [step, setStep] = useState<Step>('role');
-  const [form, setForm] = useState<FormState>(initialForm);
+  // Restauration depuis localStorage (cas du reload mobile apres camera).
+  // Les File objects (photos) ne sont PAS persistes — l'utilisateur devra
+  // retoutchier la CNI/selfie/permis, mais les champs texte sont conserves.
+  const [step, setStep] = useState<Step>(() => loadPersistedOnboarding()?.step ?? 'role');
+  const [form, setForm] = useState<FormState>(() => {
+    const persisted = loadPersistedOnboarding();
+    return persisted ? { ...initialForm, ...persisted.form } : initialForm;
+  });
   // OTP code reçu en dev (OTP_PROVIDER=mock) — affiché dans un banner au step OTP.
-  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(() => loadPersistedOnboarding()?.devOtpCode ?? null);
   // Erreur d'API (sendOtp ou register), affichée sous le bouton "Suivant".
   const [apiError, setApiError] = useState<string | null>(null);
   // Pendant un appel API (loading sur le bouton "Suivant").
   const [submitting, setSubmitting] = useState(false);
 
   const { register } = useAuth();
+
+  // Sauvegarde a chaque changement d'etape ou de champ. Au step 'done',
+  // on nettoie (l'inscription est finie, plus besoin de persister).
+  useEffect(() => {
+    if (step === 'done') {
+      clearPersistedOnboarding();
+      return;
+    }
+    savePersistedOnboarding(step, form, devOtpCode);
+  }, [step, form, devOtpCode]);
 
   const update = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
