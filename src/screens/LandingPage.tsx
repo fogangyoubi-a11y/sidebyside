@@ -53,8 +53,11 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <FinalCTA onNavigate={onNavigate} />
       <Footer />
 
-      {/* Barre de navigation principale en bas (style BlaBlaCar / Uber) */}
-      <BottomNav onNavigate={onNavigate} messagesUnread={isAuthenticated ? 3 : 0} />
+      {/* Barre de navigation principale en bas (style BlaBlaCar / Uber)
+          Note : messagesUnread=0 en attendant que le backend expose le vrai compteur
+          via GET /conversations (champ unreadCount par conv).
+          Cf. roadmap pour le wiring de la vraie valeur. */}
+      <BottomNav onNavigate={onNavigate} messagesUnread={0} />
 
       {/* Modal d'auth gate — partagé pour toutes les actions qui requièrent un compte */}
       {authGate && (
