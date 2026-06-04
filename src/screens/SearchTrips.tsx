@@ -256,7 +256,7 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
         </section>
       </main>
 
-      <BottomNav active="search" onNavigate={onNavigate} messagesUnread={3} />
+      <BottomNav active="search" onNavigate={onNavigate} messagesUnread={0} />
     </div>
   );
 }
