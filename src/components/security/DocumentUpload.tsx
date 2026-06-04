@@ -149,31 +149,53 @@ export function DocumentUpload({
     );
   }
 
-  /* ===== Mode "selfie" : 1 seul bouton, caméra frontale ===== */
+  /* ===== Mode "selfie" : camera frontale + fallback galerie =====
+     Sur mobile, ouvrir la camera systeme decharge souvent la page React de
+     la memoire vive (perte d'etat au retour). Le bouton "Galerie" permet
+     d'eviter ce probleme : l'utilisateur prend d'abord la photo avec son
+     app Camera habituelle, puis la selectionne sans quitter le navigateur. */
   if (mode === 'selfie') {
     return (
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => cameraRef.current?.click()}
-          disabled={processing}
-          className={cn(
-            'group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card-lg border-2 border-dashed border-sbs-border bg-white p-5 text-center transition-all hover:border-sbs-blue hover:bg-sbs-blue-light/30',
-            processing && 'cursor-wait opacity-60',
-          )}
-        >
-          <span className="grid h-14 w-14 place-items-center rounded-card-lg bg-sbs-blue-light text-sbs-blue transition-colors group-hover:bg-sbs-blue group-hover:text-white">
+        <div className={cn(
+          'rounded-card-lg border-2 border-dashed bg-white p-5 text-center transition-all',
+          error ? 'border-sbs-red bg-red-50/30' : 'border-sbs-border',
+        )}>
+          <span className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-card-lg bg-sbs-blue-light text-sbs-blue">
             {processing ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
           </span>
-          <div>
+          <div className="mb-3">
             <div className="font-display text-sm font-extrabold text-sbs-dark">{label}</div>
             {hint && <div className="mt-0.5 text-[11px] text-sbs-muted">{hint}</div>}
           </div>
-          <div className="inline-flex items-center gap-1.5 rounded-pill bg-sbs-blue px-4 py-1.5 text-xs font-bold text-white">
-            <Camera className="h-3.5 w-3.5" />
-            {processing ? 'Traitement…' : 'Ouvrir la caméra'}
+
+          {/* 2 boutons : caméra frontale + galerie (pour eviter le bug de
+              rechargement mobile quand on quitte le navigateur). */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={processing}
+              className="flex items-center justify-center gap-1.5 rounded-pill bg-sbs-blue px-3 py-2.5 text-xs font-bold text-white shadow-soft transition-all hover:bg-sbs-blue-dark active:scale-95 disabled:cursor-wait disabled:opacity-50"
+            >
+              <Camera className="h-4 w-4" />
+              Prendre un selfie
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryRef.current?.click()}
+              disabled={processing}
+              className="flex items-center justify-center gap-1.5 rounded-pill border border-sbs-blue bg-white px-3 py-2.5 text-xs font-bold text-sbs-blue shadow-soft transition-all hover:bg-sbs-blue-light active:scale-95 disabled:cursor-wait disabled:opacity-50"
+            >
+              <ImageIcon className="h-4 w-4" />
+              Depuis la galerie
+            </button>
           </div>
-        </button>
+
+          <p className="mt-2 text-center text-[10px] text-sbs-muted">
+            {processing ? 'Compression en cours…' : 'Astuce mobile : si la caméra bug, prends ta photo avec ton app habituelle puis "Galerie"'}
+          </p>
+        </div>
 
         <input
           ref={cameraRef}
@@ -181,6 +203,13 @@ export function DocumentUpload({
           type="file"
           accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           capture="user"
+          onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+          className="sr-only"
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
           className="sr-only"
         />
