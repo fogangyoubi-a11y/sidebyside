@@ -99,11 +99,49 @@ const ONBOARDING_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 type PersistedForm = Omit<FormState, 'cniFront' | 'cniBack' | 'selfie' | 'license' | 'vehicleRegistration' | 'vehiclePhoto'>;
 
+/** Les photos serialisees en data URL (base64) pour survivre au reload. */
+interface PersistedPhotos {
+  cniFront: string | null;
+  cniBack: string | null;
+  selfie: string | null;
+  license: string | null;
+  vehicleRegistration: string | null;
+  vehiclePhoto: string | null;
+}
+
 interface PersistedState {
   step: Step;
   form: PersistedForm;
+  photos?: PersistedPhotos;
   devOtpCode: string | null;
   savedAt: number;
+}
+
+/** Convertit un File en data URL (base64 prefix MIME). */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Reconstruit un File a partir d'une data URL. */
+function dataUrlToFile(dataUrl: string, name: string): File | null {
+  try {
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return null;
+    const mime = match[1]!;
+    const base64 = match[2]!;
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+    return new File([bytes], name, { type: mime });
+  } catch {
+    return null;
+  }
 }
 
 function loadPersistedOnboarding(): PersistedState | null {
@@ -123,23 +161,55 @@ function loadPersistedOnboarding(): PersistedState | null {
   }
 }
 
-function savePersistedOnboarding(step: Step, form: FormState, devOtpCode: string | null): void {
+/**
+ * Sauvegarde async : convertit toutes les photos presentes en base64 puis
+ * stocke le tout dans localStorage. Si le quota est depasse (~5-10 Mo), on
+ * retombe sur une sauvegarde sans photos pour au moins preserver le texte.
+ */
+async function savePersistedOnboarding(step: Step, form: FormState, devOtpCode: string | null): Promise<void> {
   if (typeof localStorage === 'undefined') return;
+
+  // Convertit les 6 photos en parallele (Promise.all)
+  const [cniFrontUrl, cniBackUrl, selfieUrl, licenseUrl, vehicleRegUrl, vehiclePhotoUrl] = await Promise.all([
+    form.cniFront            ? fileToDataUrl(form.cniFront).catch(() => null)            : Promise.resolve(null),
+    form.cniBack             ? fileToDataUrl(form.cniBack).catch(() => null)             : Promise.resolve(null),
+    form.selfie              ? fileToDataUrl(form.selfie).catch(() => null)              : Promise.resolve(null),
+    form.license             ? fileToDataUrl(form.license).catch(() => null)             : Promise.resolve(null),
+    form.vehicleRegistration ? fileToDataUrl(form.vehicleRegistration).catch(() => null) : Promise.resolve(null),
+    form.vehiclePhoto        ? fileToDataUrl(form.vehiclePhoto).catch(() => null)        : Promise.resolve(null),
+  ]);
+
+  const persistedForm: PersistedForm = {
+    role: form.role,
+    phoneLocal: form.phoneLocal,
+    otp: form.otp,
+    firstName: form.firstName,
+    lastName: form.lastName,
+    birthDate: form.birthDate,
+    password: form.password,
+    passwordConfirm: form.passwordConfirm,
+  };
+  const photos: PersistedPhotos = {
+    cniFront: cniFrontUrl,
+    cniBack: cniBackUrl,
+    selfie: selfieUrl,
+    license: licenseUrl,
+    vehicleRegistration: vehicleRegUrl,
+    vehiclePhoto: vehiclePhotoUrl,
+  };
+
+  const fullData: PersistedState = { step, form: persistedForm, photos, devOtpCode, savedAt: Date.now() };
+
   try {
-    const persistedForm: PersistedForm = {
-      role: form.role,
-      phoneLocal: form.phoneLocal,
-      otp: form.otp,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      birthDate: form.birthDate,
-      password: form.password,
-      passwordConfirm: form.passwordConfirm,
-    };
-    const data: PersistedState = { step, form: persistedForm, devOtpCode, savedAt: Date.now() };
-    localStorage.setItem(ONBOARDING_KEY, JSON.stringify(data));
+    localStorage.setItem(ONBOARDING_KEY, JSON.stringify(fullData));
   } catch {
-    /* quota depasse ou disabled — silencieux */
+    // Quota depasse — on retente sans les photos pour au moins sauver le texte
+    try {
+      const fallback: PersistedState = { step, form: persistedForm, devOtpCode, savedAt: Date.now() };
+      localStorage.setItem(ONBOARDING_KEY, JSON.stringify(fallback));
+    } catch {
+      /* localStorage cassee — silencieux */
+    }
   }
 }
 
@@ -150,12 +220,23 @@ function clearPersistedOnboarding(): void {
 
 export function Onboarding({ onNavigate }: OnboardingProps) {
   // Restauration depuis localStorage (cas du reload mobile apres camera).
-  // Les File objects (photos) ne sont PAS persistes — l'utilisateur devra
-  // retoutchier la CNI/selfie/permis, mais les champs texte sont conserves.
+  // Toutes les photos sont aussi persistees en base64 → meme apres un reload
+  // brutal pendant l'ouverture de la camera, on retrouve l'etat complet.
   const [step, setStep] = useState<Step>(() => loadPersistedOnboarding()?.step ?? 'role');
   const [form, setForm] = useState<FormState>(() => {
     const persisted = loadPersistedOnboarding();
-    return persisted ? { ...initialForm, ...persisted.form } : initialForm;
+    if (!persisted) return initialForm;
+    const p = persisted.photos;
+    return {
+      ...initialForm,
+      ...persisted.form,
+      cniFront:            p?.cniFront            ? dataUrlToFile(p.cniFront,            'cni-front.jpg')      : null,
+      cniBack:             p?.cniBack             ? dataUrlToFile(p.cniBack,             'cni-back.jpg')       : null,
+      selfie:              p?.selfie              ? dataUrlToFile(p.selfie,              'selfie.jpg')         : null,
+      license:             p?.license             ? dataUrlToFile(p.license,             'license.jpg')        : null,
+      vehicleRegistration: p?.vehicleRegistration ? dataUrlToFile(p.vehicleRegistration, 'registration.jpg')   : null,
+      vehiclePhoto:        p?.vehiclePhoto        ? dataUrlToFile(p.vehiclePhoto,        'vehicle.jpg')        : null,
+    };
   });
   // OTP code reçu en dev (OTP_PROVIDER=mock) — affiché dans un banner au step OTP.
   const [devOtpCode, setDevOtpCode] = useState<string | null>(() => loadPersistedOnboarding()?.devOtpCode ?? null);
@@ -166,14 +247,18 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
 
   const { register } = useAuth();
 
-  // Sauvegarde a chaque changement d'etape ou de champ. Au step 'done',
-  // on nettoie (l'inscription est finie, plus besoin de persister).
+  // Sauvegarde async + throttle 300 ms : evite de re-encoder les photos en
+  // base64 a chaque keystroke. Convergence rapide quand l'utilisateur arrete
+  // de taper. Au step 'done', on nettoie le localStorage.
   useEffect(() => {
     if (step === 'done') {
       clearPersistedOnboarding();
       return;
     }
-    savePersistedOnboarding(step, form, devOtpCode);
+    const timeout = setTimeout(() => {
+      savePersistedOnboarding(step, form, devOtpCode).catch(() => { /* silencieux */ });
+    }, 300);
+    return () => clearTimeout(timeout);
   }, [step, form, devOtpCode]);
 
   const update = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
