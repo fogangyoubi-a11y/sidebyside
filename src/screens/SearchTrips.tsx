@@ -6,7 +6,7 @@ import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
-import { CITIES, findCity } from '@/data/cities';
+import { CITIES } from '@/data/cities';
 import { searchTrips, todayISO } from '@/lib/search';
 import { ApiClient } from '@/lib/api';
 import { adaptApiTrip } from '@/lib/tripAdapter';
