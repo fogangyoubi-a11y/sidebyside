@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock, Loader2, Cloud, CloudOff } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock, Loader2, Cloud, CloudOff, Gift, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
@@ -14,6 +14,7 @@ import { computeTripCategory, CATEGORY_INFO, VEHICLE_TYPE_LABEL, isBargainPrice 
 import { cn, formatDuration, formatTime, formatXAF } from '@/lib/utils';
 import { TrustBadge } from '@/components/security/TrustBadge';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { isDiasporaFlow, clearDiasporaFlow } from '@/lib/diasporaFlow';
 import type { Screen, SearchFilters, Trip, TripOption, TripCategory } from '@/lib/types';
 
 interface SearchTripsProps {
@@ -43,6 +44,14 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
   const [apiTrips, setApiTrips] = useState<Trip[] | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Indique si l'utilisateur arrive depuis /diaspora (a clique "Offrir un trajet").
+  // On affiche alors un bandeau de contexte au-dessus de la recherche pour
+  // qu'il comprenne que son choix de trajet aboutira sur le formulaire beneficiaire.
+  const [diasporaActive, setDiasporaActive] = useState(false);
+  useEffect(() => {
+    setDiasporaActive(isDiasporaFlow());
+  }, []);
 
   // Recherche live côté API à chaque changement de filtre
   useEffect(() => {
@@ -121,6 +130,41 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        {/* Bandeau de contexte — visible UNIQUEMENT si l'utilisateur arrive depuis /diaspora */}
+        {diasporaActive && (
+          <div className="mb-4 flex items-start gap-3 rounded-card-lg border border-sbs-yellow/40 bg-gradient-to-r from-sbs-yellow-light/60 to-sbs-blue-light/40 p-4 shadow-soft sm:p-5">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-card bg-sbs-yellow text-sbs-dark">
+              <Gift className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="font-display text-sm font-extrabold text-sbs-dark sm:text-base">
+                  Tu offres un trajet à un proche
+                </p>
+                <span className="rounded-pill bg-sbs-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  Diaspora
+                </span>
+              </div>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-sbs-dark/80 sm:text-xs">
+                Choisis l'axe, le jour et le chauffeur. Tu rempliras ensuite les infos de ton proche
+                au Cameroun (nom, téléphone, CNI) et tu payeras en <strong>euros</strong>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearDiasporaFlow();
+                setDiasporaActive(false);
+              }}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-sbs-muted transition-colors hover:bg-white/60 hover:text-sbs-dark"
+              aria-label="Quitter le mode diaspora"
+              title="Quitter le mode diaspora"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Carte de recherche */}
         <section className="rounded-card-lg border border-sbs-border bg-white p-4 shadow-card sm:p-6">
           <div className="grid gap-3 sm:grid-cols-2">

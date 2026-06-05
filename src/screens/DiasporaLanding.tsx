@@ -38,6 +38,7 @@ import { NewsletterForm } from '@/components/diaspora/NewsletterForm';
 import { FAQAccordion, type FAQItem } from '@/components/diaspora/FAQAccordion';
 import { cn } from '@/lib/utils';
 import { formatEUR, cfaToEur, formatCFA } from '@/lib/currency';
+import { setDiasporaFlow } from '@/lib/diasporaFlow';
 import type { Screen } from '@/lib/types';
 
 interface DiasporaLandingProps {
@@ -45,9 +46,19 @@ interface DiasporaLandingProps {
 }
 
 export function DiasporaLanding({ onNavigate }: DiasporaLandingProps) {
-  /** Va au flow de réservation avec le mode "gift" pré-sélectionné. */
-  function goToGiftBooking() {
-    onNavigate('booking', { tripId: 't1', mode: 'gift' });
+  /**
+   * Démarre le flow "offrir un trajet" :
+   *  1. Pose le flag diaspora en sessionStorage (survie a la navigation)
+   *  2. Envoie l'utilisateur sur /search pour qu'il CHOISISSE son trajet
+   *     (axe, jour, chauffeur) AVANT de remplir le formulaire beneficiaire
+   *
+   * Le mode 'gift' sera automatiquement pre-selectionne dans Booking
+   * grace au flag sessionStorage, sans avoir besoin de propager
+   * ?mode=gift dans toutes les URLs intermediaires.
+   */
+  function startGiftFlow() {
+    setDiasporaFlow();
+    onNavigate('search');
   }
 
   /** Scroll fluide vers une ancre de la page. */
@@ -58,13 +69,13 @@ export function DiasporaLanding({ onNavigate }: DiasporaLandingProps) {
   return (
     <div className="min-h-screen bg-sbs-cream">
       <DiasporaHeader onNavigate={onNavigate} />
-      <Hero onCtaPrimary={goToGiftBooking} onCtaSecondary={() => scrollTo('how')} />
+      <Hero onCtaPrimary={startGiftFlow} onCtaSecondary={() => scrollTo('how')} />
       <Problem />
       <Solution id="how" />
       <Differentiators />
       <Testimonials />
       <FAQ />
-      <FinalCTA onCtaPrimary={goToGiftBooking} />
+      <FinalCTA onCtaPrimary={startGiftFlow} />
       <DiasporaFooter onNavigate={onNavigate} />
     </div>
   );

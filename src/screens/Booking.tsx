@@ -19,6 +19,7 @@ import {
 } from '@/lib/booking';
 import { cn, formatDate, formatTime, formatXAF } from '@/lib/utils';
 import { formatDualCFAEUR, formatEUR, cfaToEur } from '@/lib/currency';
+import { isDiasporaFlow, clearDiasporaFlow } from '@/lib/diasporaFlow';
 import { validatePhoneCM } from '@/lib/security';
 import { ApiClient, ApiError } from '@/lib/api';
 import { adaptApiTrip } from '@/lib/tripAdapter';
@@ -54,8 +55,15 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
 
   const [step, setStep] = useState<Step>('who');
   // initialMode permet de pre-selectionner le bon onglet 'who' depuis un deep-link
-  // (ex. /booking/t1?mode=gift depuis la landing /diaspora).
-  const [bookingMode, setBookingMode] = useState<BookingMode>(initialMode ?? 'self');
+  // (ex. /booking/t1?mode=gift depuis la landing /diaspora ou une pub Facebook).
+  // En l'absence d'initialMode, on regarde le flag sessionStorage pose par la
+  // landing /diaspora quand l'utilisateur a cliqué "Offrir un trajet" puis
+  // a traverse Search et TripDetail.
+  const [bookingMode, setBookingMode] = useState<BookingMode>(() => {
+    if (initialMode) return initialMode;
+    if (isDiasporaFlow()) return 'gift';
+    return 'self';
+  });
 
   // Bénéficiaire (mode "gift")
   const [beneficiary, setBeneficiary] = useState<Beneficiary>({
@@ -134,6 +142,7 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
       setTimeout(() => {
         setProcessing(false);
         setStep('success');
+        clearDiasporaFlow(); // fin du flow : on nettoie le flag sessionStorage
       }, 2500);
       return;
     }
@@ -142,6 +151,7 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
       const { booking } = await ApiClient.createBooking({ tripId, seats });
       setBookingRef(booking.reference);
       setStep('success');
+      clearDiasporaFlow(); // fin du flow : on nettoie le flag sessionStorage
     } catch (err) {
       if (err instanceof ApiError) {
         setPayError(err.message);
@@ -216,7 +226,11 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
         {step === 'who' && (
           <WhoStep
             bookingMode={bookingMode}
-            onSelectMode={setBookingMode}
+            onSelectMode={(m) => {
+              setBookingMode(m);
+              // L'utilisateur a explicitement change de mode → on quitte le flow diaspora
+              if (m !== 'gift') clearDiasporaFlow();
+            }}
             beneficiary={beneficiary}
             onBeneficiary={setBeneficiary}
             children={children}
