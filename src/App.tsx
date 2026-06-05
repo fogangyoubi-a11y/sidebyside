@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, useParams, useSearchParams } from 'react-router-dom';
 import { LandingPage } from '@/screens/LandingPage';
 import { SearchTrips } from '@/screens/SearchTrips';
@@ -12,6 +13,10 @@ import { MyTrips } from '@/screens/MyTrips';
 import { Profile } from '@/screens/Profile';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { useScreenNavigate } from '@/lib/routing';
+
+// Code splitting : la landing diaspora n'est telechargee que si on visite /diaspora.
+// Permet de ne pas alourdir le bundle des utilisateurs qui restent dans l'app.
+const DiasporaLanding = lazy(() => import('@/screens/DiasporaLanding'));
 import {
   SEO_LANDING, SEO_DIASPORA, SEO_ONBOARDING, SEO_LOGIN, SEO_SEARCH,
   SEO_TRIP_DETAIL, SEO_BOOKING, SEO_PUBLISH, SEO_MY_TRIPS, SEO_MESSAGES, SEO_PROFILE,
@@ -41,14 +46,28 @@ function LandingRoute() {
 
 function DiasporaRoute() {
   const navigate = useScreenNavigate();
-  // Placeholder — sera remplacé par DiasporaLanding.tsx à l'étape 3.
-  // Les meta tags diaspora sont déjà actifs : si tu pousses des pubs FB
-  // sur /diaspora dès maintenant, l'aperçu WhatsApp sera correct.
   return (
     <>
       <SeoHead {...SEO_DIASPORA} />
-      <ComingSoon screen="admin" onNavigate={navigate} />
+      <Suspense fallback={<DiasporaSkeleton />}>
+        <DiasporaLanding onNavigate={navigate} />
+      </Suspense>
     </>
+  );
+}
+
+/** Skeleton minimaliste affiche pendant le chargement du chunk lazy de DiasporaLanding. */
+function DiasporaSkeleton() {
+  return (
+    <div className="min-h-screen bg-sbs-blue">
+      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <div className="h-8 w-48 animate-pulse rounded-pill bg-white/10" />
+        <div className="mt-6 h-12 w-3/4 animate-pulse rounded-card bg-white/10" />
+        <div className="mt-3 h-12 w-2/3 animate-pulse rounded-card bg-white/10" />
+        <div className="mt-8 h-4 w-1/2 animate-pulse rounded bg-white/10" />
+        <div className="mt-2 h-4 w-1/3 animate-pulse rounded bg-white/10" />
+      </div>
+    </div>
   );
 }
 
