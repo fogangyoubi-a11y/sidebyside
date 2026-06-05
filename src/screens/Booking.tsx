@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, ShieldCheck, Lock, CheckCircle2, MapPin,
-  Clock, User, Loader2, Phone, Gift, Users as UsersIcon, Baby, Plus, Trash2, AlertTriangle, IdCard,
+  Clock, User, Loader2, Phone, Gift, Users as UsersIcon, Baby, Plus, Trash2, AlertTriangle, IdCard, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -18,6 +18,7 @@ import {
   getOrderedPaymentMethods, getPaymentInfo,
 } from '@/lib/booking';
 import { cn, formatDate, formatTime, formatXAF } from '@/lib/utils';
+import { formatDualCFAEUR, formatEUR, cfaToEur } from '@/lib/currency';
 import { validatePhoneCM } from '@/lib/security';
 import { ApiClient, ApiError } from '@/lib/api';
 import { adaptApiTrip } from '@/lib/tripAdapter';
@@ -277,6 +278,7 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
 
             <PaymentForm
               method={paymentMethod}
+              bookingMode={bookingMode}
               phone={phone}
               onPhoneChange={setPhone}
               totalAmount={price.total}
@@ -669,8 +671,21 @@ function RecapStep({ trip, departure, seats, bookingMode, beneficiary, children,
           <Line label="Sous-total" value={formatXAF(price.basePrice)} />
           <Line label="Frais de service SideBySide" value={formatXAF(price.serviceFee)} subtle />
           <div className="mt-2 border-t border-sbs-border pt-2" />
-          <Line label="Total à payer" value={formatXAF(price.total)} highlight />
+          <Line
+            label="Total à payer"
+            value={isGift ? formatDualCFAEUR(price.total) : formatXAF(price.total)}
+            highlight
+          />
         </dl>
+        {isGift && (
+          <p className="mt-3 flex items-start gap-2 rounded-card border border-sbs-blue/20 bg-sbs-blue-light/30 p-3 text-[12px] leading-relaxed text-sbs-blue">
+            <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Tu seras débité·e en <strong>euros</strong> ({formatEUR(cfaToEur(price.total))}) via PayPal,
+              Carte ou Bancontact. Taux fixe garanti — pas de frais de change.
+            </span>
+          </p>
+        )}
       </section>
 
       <Button variant="primary" size="lg" onClick={onNext} className="w-full rounded-pill">
@@ -696,7 +711,10 @@ function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
   return (
     <div className="space-y-3">
       <p className="text-center text-sm text-sbs-muted">
-        Choisissez comment payer vos <strong className="text-sbs-dark">{formatXAF(total)}</strong>
+        Choisissez comment payer vos{' '}
+        <strong className="text-sbs-dark">
+          {bookingMode === 'gift' ? formatDualCFAEUR(total) : formatXAF(total)}
+        </strong>
       </p>
 
       {bookingMode === 'gift' && (
@@ -814,8 +832,9 @@ function Line({ label, value, highlight, subtle }: { label: string; value: strin
   );
 }
 
-function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, onPay }: {
+function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, processing, onPay }: {
   method: PaymentMethod;
+  bookingMode: BookingMode;
   phone: string;
   onPhoneChange: (v: string) => void;
   totalAmount: number;
@@ -826,6 +845,10 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
   const phoneValid = (method === 'mtn' || method === 'orange') ? validatePhoneCM(phone).valid : true;
   const canPay = phoneValid;
   const isPayPal = method === 'paypal';
+  // En mode diaspora (gift) + PayPal/Carte/Bancontact, on facture en EUR.
+  // Pour MTN/Orange on reste en F CFA (paiement local).
+  const useEurAsPrimary = bookingMode === 'gift' && (method === 'paypal' || method === 'card');
+  const totalEur = cfaToEur(totalAmount);
 
   return (
     <>
@@ -839,8 +862,19 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
             ? <PayPalLogo size={28} className="opacity-95" />
             : <span className="text-4xl" aria-hidden>{info.emoji}</span>}
         </div>
-        <div className="mt-4 text-3xl font-extrabold tracking-tight">{formatXAF(totalAmount)}</div>
-        <div className="text-[11px] opacity-80">à débiter en une fois</div>
+        {useEurAsPrimary ? (
+          <>
+            <div className="mt-4 text-3xl font-extrabold tracking-tight">{formatEUR(totalEur)}</div>
+            <div className="text-[11px] opacity-80">
+              ≈ {formatXAF(totalAmount)} · taux fixe garanti
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-4 text-3xl font-extrabold tracking-tight">{formatXAF(totalAmount)}</div>
+            <div className="text-[11px] opacity-80">à débiter en une fois</div>
+          </>
+        )}
       </div>
 
       {(method === 'mtn' || method === 'orange') && (
@@ -924,9 +958,9 @@ function PaymentForm({ method, phone, onPhoneChange, totalAmount, processing, on
         {processing ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Traitement en cours…</>
         ) : isPayPal ? (
-          <><PayPalLogo size={16} /> Payer avec PayPal {formatXAF(totalAmount)}</>
+          <><PayPalLogo size={16} /> Payer avec PayPal {useEurAsPrimary ? formatEUR(totalEur) : formatXAF(totalAmount)}</>
         ) : (
-          <><Lock className="h-4 w-4" /> Payer {formatXAF(totalAmount)}</>
+          <><Lock className="h-4 w-4" /> Payer {useEurAsPrimary ? formatEUR(totalEur) : formatXAF(totalAmount)}</>
         )}
       </Button>
     </>

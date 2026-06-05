@@ -37,6 +37,7 @@ import { PayPalLogo } from '@/components/ui/PayPalLogo';
 import { NewsletterForm } from '@/components/diaspora/NewsletterForm';
 import { FAQAccordion, type FAQItem } from '@/components/diaspora/FAQAccordion';
 import { cn } from '@/lib/utils';
+import { formatEUR, cfaToEur, formatCFA } from '@/lib/currency';
 import type { Screen } from '@/lib/types';
 
 interface DiasporaLandingProps {
@@ -284,11 +285,18 @@ function HeroCard() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-t border-sbs-border pt-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-sbs-muted">
-            Payé via PayPal
+        <div className="mt-4 border-t border-sbs-border pt-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-sbs-muted">
+              Payé via PayPal
+            </div>
+            <div className="font-display text-lg font-extrabold text-sbs-dark">
+              {formatEUR(cfaToEur(5000))}
+            </div>
           </div>
-          <div className="font-display text-lg font-extrabold text-sbs-dark">7,62 €</div>
+          <div className="mt-0.5 text-right text-[10px] text-sbs-muted">
+            ≈ {formatCFA(5000)} · taux fixe garanti
+          </div>
         </div>
       </div>
 
