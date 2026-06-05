@@ -6,6 +6,7 @@ export type Role = 'passenger' | 'driver';
 
 export type Screen =
   | 'landing'
+  | 'diaspora'
   | 'onboarding'
   | 'auth'
   | 'login'

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { Screen } from '@/lib/types';
+import { Routes, Route, useParams, useSearchParams } from 'react-router-dom';
 import { LandingPage } from '@/screens/LandingPage';
 import { SearchTrips } from '@/screens/SearchTrips';
 import { Onboarding } from '@/screens/Onboarding';
@@ -11,72 +10,117 @@ import { PublishTrip } from '@/screens/PublishTrip';
 import { Messages } from '@/screens/Messages';
 import { MyTrips } from '@/screens/MyTrips';
 import { Profile } from '@/screens/Profile';
+import { useScreenNavigate } from '@/lib/routing';
 
-interface RouteState {
-  screen: Screen;
-  params: Record<string, string>;
+/* ============================================================
+   Wrappers de routes
+   ============================================================
+   Chaque <Route> rend un mini composant qui :
+   1. Récupère les params URL via useParams() + useSearchParams()
+   2. Obtient le hook de navigation `navigate(screen, params)`
+   3. Passe le tout en props au composant Screen historique
+
+   → Les composants Screen restent inchangés (rétrocompat parfaite).
+*/
+
+function LandingRoute() {
+  const navigate = useScreenNavigate();
+  return <LandingPage onNavigate={navigate} />;
 }
 
+function DiasporaRoute() {
+  const navigate = useScreenNavigate();
+  // Placeholder — sera remplacé par DiasporaLanding.tsx à l'étape 3
+  return <ComingSoon screen="admin" onNavigate={navigate} />;
+}
+
+function OnboardingRoute() {
+  const navigate = useScreenNavigate();
+  return <Onboarding onNavigate={navigate} />;
+}
+
+function LoginRoute() {
+  const navigate = useScreenNavigate();
+  return <Login onNavigate={navigate} />;
+}
+
+function SearchRoute() {
+  const [search] = useSearchParams();
+  const navigate = useScreenNavigate();
+  return (
+    <SearchTrips
+      onNavigate={navigate}
+      initialFromId={search.get('from') ?? undefined}
+      initialToId={search.get('to') ?? undefined}
+    />
+  );
+}
+
+function TripDetailRoute() {
+  const { tripId } = useParams<{ tripId: string }>();
+  const navigate = useScreenNavigate();
+  return <TripDetail tripId={tripId ?? 't1'} onNavigate={navigate} />;
+}
+
+function BookingRoute() {
+  const { tripId } = useParams<{ tripId: string }>();
+  const [search] = useSearchParams();
+  const navigate = useScreenNavigate();
+  return (
+    <Booking
+      tripId={tripId ?? 't1'}
+      seats={Number(search.get('seats') ?? '1')}
+      onNavigate={navigate}
+    />
+  );
+}
+
+function PublishRoute() {
+  const navigate = useScreenNavigate();
+  return <PublishTrip onNavigate={navigate} />;
+}
+
+function MyTripsRoute() {
+  const navigate = useScreenNavigate();
+  return <MyTrips onNavigate={navigate} />;
+}
+
+function MessagesRoute() {
+  const navigate = useScreenNavigate();
+  return <Messages onNavigate={navigate} />;
+}
+
+function ProfileRoute() {
+  const navigate = useScreenNavigate();
+  return <Profile onNavigate={navigate} />;
+}
+
+function NotFoundRoute() {
+  const navigate = useScreenNavigate();
+  return <ComingSoon screen="admin" onNavigate={navigate} />;
+}
+
+/* ============================================================
+   App — déclaration des routes
+   ============================================================ */
+
 function App() {
-  const [route, setRoute] = useState<RouteState>({ screen: 'landing', params: {} });
-
-  const navigate = (screen: Screen, params: Record<string, string> = {}) => {
-    setRoute({ screen, params });
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  switch (route.screen) {
-    case 'landing':
-      return <LandingPage onNavigate={navigate} />;
-
-    case 'search':
-    case 'search-results':
-      return (
-        <SearchTrips
-          onNavigate={navigate}
-          initialFromId={route.params.from}
-          initialToId={route.params.to}
-        />
-      );
-
-    case 'onboarding':
-    case 'auth':
-    case 'role-pick':
-      return <Onboarding onNavigate={navigate} />;
-
-    case 'login':
-      return <Login onNavigate={navigate} />;
-
-    case 'trip-detail':
-      return <TripDetail tripId={route.params.tripId ?? 't1'} onNavigate={navigate} />;
-
-    case 'booking':
-    case 'payment':
-    case 'booking-confirmed':
-      return (
-        <Booking
-          tripId={route.params.tripId ?? 't1'}
-          seats={Number(route.params.seats ?? '1')}
-          onNavigate={navigate}
-        />
-      );
-
-    case 'publish-trip':
-      return <PublishTrip onNavigate={navigate} />;
-
-    case 'my-trips':
-    case 'driver-trips':
-      return <MyTrips onNavigate={navigate} />;
-
-    case 'messages':
-      return <Messages onNavigate={navigate} />;
-
-    case 'profile':
-      return <Profile onNavigate={navigate} />;
-
-    default:
-      return <ComingSoon screen={route.screen} onNavigate={navigate} />;
-  }
+  return (
+    <Routes>
+      <Route path="/" element={<LandingRoute />} />
+      <Route path="/diaspora" element={<DiasporaRoute />} />
+      <Route path="/onboarding" element={<OnboardingRoute />} />
+      <Route path="/login" element={<LoginRoute />} />
+      <Route path="/search" element={<SearchRoute />} />
+      <Route path="/trip/:tripId" element={<TripDetailRoute />} />
+      <Route path="/booking/:tripId" element={<BookingRoute />} />
+      <Route path="/publish" element={<PublishRoute />} />
+      <Route path="/my-trips" element={<MyTripsRoute />} />
+      <Route path="/messages" element={<MessagesRoute />} />
+      <Route path="/profile" element={<ProfileRoute />} />
+      <Route path="*" element={<NotFoundRoute />} />
+    </Routes>
+  );
 }
 
 export default App;
