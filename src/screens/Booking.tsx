@@ -26,6 +26,8 @@ import type { Screen, PaymentMethod, BookingMode, Beneficiary, Child, ChildRelat
 interface BookingProps {
   tripId: string;
   seats: number;
+  /** Mode pré-sélectionné — utile pour le deep-link depuis /diaspora qui passe `?mode=gift`. */
+  initialMode?: BookingMode;
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
 }
 
@@ -43,14 +45,16 @@ const RELATIONS: { id: ChildRelation; label: string }[] = [
   { id: 'autre', label: 'Autre' },
 ];
 
-export function Booking({ tripId, seats, onNavigate }: BookingProps) {
+export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps) {
   const mockTrip = findTrip(tripId);
   const [liveTrip, setLiveTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState<boolean>(!mockTrip);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>('who');
-  const [bookingMode, setBookingMode] = useState<BookingMode>('self');
+  // initialMode permet de pre-selectionner le bon onglet 'who' depuis un deep-link
+  // (ex. /booking/t1?mode=gift depuis la landing /diaspora).
+  const [bookingMode, setBookingMode] = useState<BookingMode>(initialMode ?? 'self');
 
   // Bénéficiaire (mode "gift")
   const [beneficiary, setBeneficiary] = useState<Beneficiary>({

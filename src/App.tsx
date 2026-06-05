@@ -123,12 +123,18 @@ function BookingRoute() {
   const [search] = useSearchParams();
   const navigate = useScreenNavigate();
   const id = tripId ?? 't1';
+  // ?mode=gift|self|family — utilise par le deep-link depuis /diaspora pour
+  // pre-selectionner le mode "offrir un trajet" et reduire les frictions.
+  const rawMode = search.get('mode');
+  const initialMode: 'self' | 'gift' | 'family' | undefined =
+    rawMode === 'gift' || rawMode === 'family' || rawMode === 'self' ? rawMode : undefined;
   return (
     <>
       <SeoHead {...SEO_BOOKING(id)} />
       <Booking
         tripId={id}
         seats={Number(search.get('seats') ?? '1')}
+        initialMode={initialMode}
         onNavigate={navigate}
       />
     </>
