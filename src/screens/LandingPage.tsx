@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { MapPin, Shield, Wallet, MessageCircle, Star, ArrowRight, Smartphone, Users, Search, Car } from 'lucide-react';
+import { MapPin, Shield, Wallet, MessageCircle, Star, ArrowRight, Smartphone, Users, Search, Car, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
+import { NotifyMeModal } from '@/components/landing/NotifyMeModal';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { TRIPS } from '@/data/trips';
@@ -51,13 +52,9 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <DriverCTA onNavigate={onNavigate} navigateGated={navigateGated} />
       <Testimonials />
       <FinalCTA onNavigate={onNavigate} />
-      <Footer />
+      <Footer onNavigate={onNavigate} />
 
-      {/* Barre de navigation principale en bas (style BlaBlaCar / Uber)
-          Note : messagesUnread=0 en attendant que le backend expose le vrai compteur
-          via GET /conversations (champ unreadCount par conv).
-          Cf. roadmap pour le wiring de la vraie valeur. */}
-      <BottomNav onNavigate={onNavigate} messagesUnread={0} />
+      <BottomNav onNavigate={onNavigate} />
 
       {/* Modal d'auth gate — partagé pour toutes les actions qui requièrent un compte */}
       {authGate && (
@@ -107,6 +104,14 @@ function LandingHeader({ onNavigate }: { onNavigate: (s: Screen) => void }) {
           <NavItem label="Comment ça marche" target="how" />
           <NavItem label="Trajets" target="routes" />
           <NavItem label="Devenir chauffeur" target="driver" />
+          <button
+            type="button"
+            onClick={() => onNavigate('diaspora')}
+            className="ml-1 inline-flex items-center gap-1.5 rounded-pill border border-sbs-yellow/40 bg-sbs-yellow-light px-3 py-2 text-sm font-bold text-sbs-dark transition-colors hover:border-sbs-yellow hover:bg-sbs-yellow/20"
+          >
+            <span aria-hidden>🌍</span>
+            Diaspora
+          </button>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -194,6 +199,16 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
               Publier un trajet
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('diaspora')}
+            className="group mt-5 inline-flex items-center gap-2 rounded-pill border border-sbs-yellow/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:border-sbs-yellow hover:bg-white/15"
+          >
+            <span aria-hidden>🌍</span>
+            <span>Tu es à l'étranger ? Offre un trajet à un proche</span>
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
 
           <div className="mt-8 flex items-center gap-4 text-sm text-white/70">
             <div className="flex -space-x-2">
@@ -320,6 +335,9 @@ function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record
   const douBaf = getRouteStats('douala', 'bafoussam');
   const bafDou = getRouteStats('bafoussam', 'douala');
 
+  // Axe sélectionné pour la modal "Préviens-moi" (null = modal fermée).
+  const [notifyAxis, setNotifyAxis] = useState<{ id: string; label: string } | null>(null);
+
   const routes = [
     { from: 'Douala', to: 'Bafoussam', fromId: 'douala', toId: 'bafoussam', price: douBaf?.minPrice ?? 3500, duration: douBaf ? formatDuration(douBaf.minDuration) : '4 h 15', popular: true, available: true },
     { from: 'Bafoussam', to: 'Douala', fromId: 'bafoussam', toId: 'douala', price: bafDou?.minPrice ?? 3500, duration: bafDou ? formatDuration(bafDou.minDuration) : '4 h 00', popular: true, available: true },
@@ -345,31 +363,32 @@ function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {routes.map((r) => {
-            const inner = (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <MapPin className="h-4 w-4 text-sbs-blue" />
-                    {r.from}
-                    <ArrowRight className="h-3.5 w-3.5 text-sbs-muted" />
-                    {r.to}
-                  </div>
-                  {r.popular && <Badge tone="yellow">Populaire</Badge>}
-                  {!r.available && <Badge tone="muted">Bientôt</Badge>}
+            const heading = (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  <MapPin className="h-4 w-4 text-sbs-blue" />
+                  {r.from}
+                  <ArrowRight className="h-3.5 w-3.5 text-sbs-muted" />
+                  {r.to}
                 </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <div>
-                    <div className="font-display text-xl font-extrabold text-sbs-dark">
-                      {r.price.toLocaleString('fr-FR')} <span className="text-sm">F CFA</span>
-                    </div>
-                    <div className="text-[11px] text-sbs-muted">à partir de</div>
+                {r.popular && <Badge tone="yellow">Populaire</Badge>}
+                {!r.available && <Badge tone="muted">Bientôt</Badge>}
+              </div>
+            );
+
+            const priceRow = (
+              <div className="mt-3 flex items-baseline justify-between">
+                <div>
+                  <div className="font-display text-xl font-extrabold text-sbs-dark">
+                    {r.price.toLocaleString('fr-FR')} <span className="text-sm">F CFA</span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-sbs-dark">{r.duration}</div>
-                    <div className="text-[11px] text-sbs-muted">durée estimée</div>
-                  </div>
+                  <div className="text-[11px] text-sbs-muted">à partir de</div>
                 </div>
-              </>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-sbs-dark">{r.duration}</div>
+                  <div className="text-[11px] text-sbs-muted">durée estimée</div>
+                </div>
+              </div>
             );
 
             if (r.available) {
@@ -380,22 +399,47 @@ function RoutesSection({ onNavigate }: { onNavigate: (s: Screen, params?: Record
                   onClick={() => onNavigate('search', { from: r.fromId, to: r.toId })}
                   className="rounded-card-lg border border-sbs-border bg-white p-5 text-left transition-all hover:border-sbs-blue/40 hover:shadow-card active:scale-[0.99]"
                 >
-                  {inner}
+                  {heading}
+                  {priceRow}
                 </button>
               );
             }
             return (
-              <div
+              <button
                 key={`${r.from}-${r.to}`}
-                className="rounded-card-lg border border-dashed border-sbs-border bg-white p-5 opacity-70"
-                title="Cette route arrive bientôt"
+                type="button"
+                onClick={() =>
+                  setNotifyAxis({
+                    id: `${r.fromId}-${r.toId}`,
+                    label: `${r.from} → ${r.to}`,
+                  })
+                }
+                className="group rounded-card-lg border border-dashed border-sbs-border bg-white p-5 text-left transition-all hover:border-sbs-yellow hover:bg-sbs-yellow-light/30 hover:shadow-card active:scale-[0.99]"
+                aria-label={`Être prévenu·e quand ${r.from} → ${r.to} ouvre`}
               >
-                {inner}
-              </div>
+                {heading}
+                {priceRow}
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-sbs-border-soft pt-3 text-xs font-bold text-sbs-yellow-dark">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Bell className="h-3.5 w-3.5" />
+                    Préviens-moi quand cet axe ouvre
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      {notifyAxis && (
+        <NotifyMeModal
+          isOpen={!!notifyAxis}
+          onClose={() => setNotifyAxis(null)}
+          axisId={notifyAxis.id}
+          axisLabel={notifyAxis.label}
+        />
+      )}
     </section>
   );
 }
@@ -583,7 +627,7 @@ function FinalCTA({ onNavigate }: { onNavigate: (s: Screen) => void }) {
 
 /* ----------------------------- FOOTER ----------------------------- */
 
-function Footer() {
+function Footer({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   return (
     <footer className="border-t border-sbs-border bg-white py-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -600,18 +644,28 @@ function Footer() {
             </p>
           </div>
 
-          <FooterCol
-            title="Produit"
-            links={['Comment ça marche', 'Trajets', 'Tarifs', 'Devenir chauffeur']}
-          />
-          <FooterCol
-            title="Entreprise"
-            links={['À propos', 'Blog', 'Carrières', 'Presse']}
-          />
-          <FooterCol
-            title="Légal"
-            links={["Conditions d'utilisation", 'Confidentialité', 'Cookies', 'Contact']}
-          />
+          <FooterCol title="Produit">
+            <FooterAnchor href="#how">Comment ça marche</FooterAnchor>
+            <FooterAnchor href="#routes">Trajets disponibles</FooterAnchor>
+            <FooterAnchor href="#driver">Devenir chauffeur</FooterAnchor>
+            <FooterButton onClick={() => onNavigate('diaspora')}>
+              <span aria-hidden>🌍</span> Pour la diaspora
+            </FooterButton>
+          </FooterCol>
+
+          <FooterCol title="Navigation">
+            <FooterButton onClick={() => onNavigate('search')}>Rechercher un trajet</FooterButton>
+            <FooterButton onClick={() => onNavigate('publish-trip')}>Publier un trajet</FooterButton>
+            <FooterButton onClick={() => onNavigate('login')}>Se connecter</FooterButton>
+            <FooterButton onClick={() => onNavigate('onboarding')}>Créer un compte</FooterButton>
+          </FooterCol>
+
+          <FooterCol title="Légal">
+            <FooterButton onClick={() => onNavigate('legal')} hash="terms">Conditions générales</FooterButton>
+            <FooterButton onClick={() => onNavigate('legal')} hash="privacy">Confidentialité</FooterButton>
+            <FooterButton onClick={() => onNavigate('legal')} hash="cookies">Cookies</FooterButton>
+            <FooterButton onClick={() => onNavigate('contact')}>Nous contacter</FooterButton>
+          </FooterCol>
         </div>
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-sbs-border pt-6 sm:flex-row">
           <p className="text-xs text-sbs-muted">© 2026 SideBySide · Tous droits réservés</p>
@@ -622,19 +676,54 @@ function Footer() {
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: string[] }) {
+function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
       <h4 className="font-display text-sm font-extrabold text-sbs-dark">{title}</h4>
-      <ul className="mt-3 space-y-2">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="text-sm text-sbs-muted transition-colors hover:text-sbs-dark">
-              {l}
-            </a>
-          </li>
-        ))}
-      </ul>
+      <ul className="mt-3 space-y-2">{children}</ul>
     </div>
+  );
+}
+
+function FooterAnchor({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <a href={href} className="text-sm text-sbs-muted transition-colors hover:text-sbs-dark">
+        {children}
+      </a>
+    </li>
+  );
+}
+
+/**
+ * Bouton-footer qui navigue via onNavigate. Si `hash` est fourni, on l'applique
+ * via location.hash après la navigation pour scroll-into-view de la section.
+ */
+function FooterButton({
+  onClick,
+  hash,
+  children,
+}: {
+  onClick: () => void;
+  hash?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => {
+          onClick();
+          if (hash) {
+            setTimeout(() => {
+              window.location.hash = hash;
+            }, 100);
+          }
+        }}
+        className="text-left text-sm text-sbs-muted transition-colors hover:text-sbs-dark"
+      >
+        {children}
+      </button>
+    </li>
   );
 }

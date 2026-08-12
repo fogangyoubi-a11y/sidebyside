@@ -913,9 +913,33 @@ function DiasporaFooter({ onNavigate }: { onNavigate: (s: Screen) => void }) {
                 Légal
               </div>
               <ul className="space-y-2 text-sm text-white/80">
-                <li><span className="opacity-60">Conditions générales</span></li>
-                <li><span className="opacity-60">Politique de confidentialité</span></li>
-                <li><span className="opacity-60">Nous contacter</span></li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { onNavigate('legal'); setTimeout(() => { window.location.hash = 'terms'; }, 100); }}
+                    className="hover:text-white"
+                  >
+                    Conditions générales
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { onNavigate('legal'); setTimeout(() => { window.location.hash = 'privacy'; }, 100); }}
+                    className="hover:text-white"
+                  >
+                    Politique de confidentialité
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('contact')}
+                    className="hover:text-white"
+                  >
+                    Nous contacter
+                  </button>
+                </li>
               </ul>
             </div>
           </div>

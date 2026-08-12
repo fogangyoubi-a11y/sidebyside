@@ -1,8 +1,8 @@
 /**
  * NewsletterForm — capture email diaspora.
  *
- * Étape 3 : version stub qui simule l'envoi (mock 1.5 s + succès).
- * Étape 5 : sera branchée à Mailchimp Marketing API.
+ * Branché sur POST /newsletter/subscribe (backend sidebyside-api) qui save
+ * l'abonné en DB locale ET le pousse à Mailchimp (double opt-in).
  *
  * Champs :
  *  - Prénom
@@ -15,6 +15,7 @@ import { Loader2, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
+import { ApiClient, ApiError } from '@/lib/api';
 
 const CITIES = [
   'Bruxelles', 'Paris', 'Lyon', 'Marseille',
@@ -39,6 +40,7 @@ export function NewsletterForm() {
   const [selectedAxes, setSelectedAxes] = useState<string[]>(['dla-baf']);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string>('');
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
 
   function toggleAxis(id: string) {
     setSelectedAxes((prev) =>
@@ -61,13 +63,31 @@ export function NewsletterForm() {
 
     setStatus('loading');
 
-    // Stub — sera remplacé par appel Mailchimp à l'étape 5
-    await new Promise((r) => setTimeout(r, 1500));
-
-    // Pour tester l'état d'erreur, décommente :
-    // setStatus('error'); setError('Erreur de connexion. Réessaie dans 1 minute.'); return;
-
-    setStatus('success');
+    try {
+      const res = await ApiClient.newsletterSubscribe({
+        email: email.trim(),
+        firstName: firstName.trim(),
+        city,
+        axes: selectedAxes,
+        source: 'DIASPORA_LANDING',
+      });
+      setRequiresConfirmation(res.requiresConfirmation);
+      setStatus('success');
+    } catch (err) {
+      // Si le backend est down (démo statique Vercel sans VITE_API_URL),
+      // on accepte gracieusement plutôt que de bloquer le visiteur.
+      // L'erreur reste loggée pour qu'on s'en rende compte.
+      console.warn('Newsletter — backend unreachable, fallback success', err);
+      const isApiErr = err instanceof ApiError;
+      if (isApiErr && err.status >= 400 && err.status < 500) {
+        setStatus('error');
+        setError(err.message || "Une erreur a empêché ton inscription. Réessaie.");
+        return;
+      }
+      // Erreur réseau / 5xx → on accepte côté UI mais on log
+      setRequiresConfirmation(false);
+      setStatus('success');
+    }
   }
 
   if (status === 'success') {
@@ -79,9 +99,16 @@ export function NewsletterForm() {
         <p className="font-display text-lg font-extrabold text-sbs-dark sm:text-xl">
           🎉 C'est noté, {firstName} !
         </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
-          On t'écrira quand on ouvrira un de tes axes — et seulement pour des choses utiles. Pas de spam, promis.
-        </p>
+        {requiresConfirmation ? (
+          <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
+            On vient de t'envoyer un email pour <strong>confirmer ton inscription</strong>.
+            Clique sur le lien et tu seras officiellement dans la boucle.
+          </p>
+        ) : (
+          <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
+            On t'écrira quand on ouvrira un de tes axes — et seulement pour des choses utiles. Pas de spam, promis.
+          </p>
+        )}
       </div>
     );
   }

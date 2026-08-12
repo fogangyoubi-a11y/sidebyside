@@ -17,6 +17,7 @@ import {
   computePrice, computeFamilyPrice, getChildTier, generateBookingRef,
   getOrderedPaymentMethods, getPaymentInfo,
 } from '@/lib/booking';
+import { DIGITAL_PAYMENT_DISCOUNT_XAF, isDigitalPayment } from '@/lib/commissionTiers';
 import { cn, formatDate, formatTime, formatXAF } from '@/lib/utils';
 import { formatDualCFAEUR, formatEUR, cfaToEur } from '@/lib/currency';
 import { isDiasporaFlow, clearDiasporaFlow } from '@/lib/diasporaFlow';
@@ -34,6 +35,25 @@ interface BookingProps {
 }
 
 type Step = 'who' | 'recap' | 'method' | 'pay' | 'success';
+
+/** Étend PaymentMethod avec 'cash' sans modifier types.ts */
+type ExtendedPaymentMethod = PaymentMethod | 'cash';
+
+const CASH_PAYMENT_INFO = {
+  id: 'cash' as const,
+  label: 'Espèces (Cash)',
+  shortLabel: 'Cash',
+  description: 'Paiement direct au chauffeur à l\'arrivée · Aucun frais',
+  brandColor: '#16A34A',
+  textColor: '#FFFFFF',
+  emoji: '💵',
+  available: true,
+};
+
+function getExtendedPaymentInfo(id: ExtendedPaymentMethod) {
+  if (id === 'cash') return CASH_PAYMENT_INFO;
+  return getPaymentInfo(id);
+}
 
 const RELATIONS: { id: ChildRelation; label: string }[] = [
   { id: 'fils', label: 'Mon fils' },
@@ -74,19 +94,21 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
   const [children, setChildren] = useState<Child[]>([]);
   const [parentAboard, setParentAboard] = useState<boolean>(false);
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<ExtendedPaymentMethod | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
   // Référence de réservation : utilisée comme valeur initiale pour la page de succès.
   // Sera remplacée par la vraie référence backend une fois le POST /bookings réussi.
   const [bookingRef, setBookingRef] = useState<string>(() => generateBookingRef());
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  const [campayRef, setCampayRef] = useState<string | null>(null);
+  const [pollingStatus, setPollingStatus] = useState<'idle' | 'polling' | 'success' | 'failed'>('idle');
 
   // Fallback API si le trajet n'est pas dans les mocks (id = CUID Prisma).
   useEffect(() => {
     if (mockTrip) return;
     let cancelled = false;
-    setLoading(true);
     ApiClient.getTrip(tripId)
       .then(({ trip }) => { if (!cancelled) setLiveTrip(adaptApiTrip(trip)); })
       .catch((err) => {
@@ -96,6 +118,52 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [tripId, mockTrip]);
+
+  // ── Polling paiement Campay ───────────────────────────────────
+  // Placé avant les `return` conditionnels ci-dessous pour respecter les
+  // Rules of Hooks (un hook ne doit jamais être appelé conditionnellement).
+  useEffect(() => {
+    if (!campayRef || pollingStatus !== 'polling') return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 40; // 40 × 3s = 2 minutes max
+
+    const interval = setInterval(async () => {
+      if (cancelled) return;
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        clearInterval(interval);
+        setPollingStatus('failed');
+        setPayError('Délai dépassé. Vérifiez votre téléphone et réessayez.');
+        return;
+      }
+
+      try {
+        const { status } = await ApiClient.getPaymentStatus(campayRef);
+        if (cancelled) return;
+
+        if (status === 'SUCCESSFUL') {
+          clearInterval(interval);
+          setPollingStatus('success');
+          setStep('success');
+          clearDiasporaFlow();
+        } else if (status === 'FAILED') {
+          clearInterval(interval);
+          setPollingStatus('failed');
+          setPayError('Paiement refusé ou annulé. Vérifiez votre solde et réessayez.');
+        }
+        // PENDING → continuer à poller
+      } catch {
+        // Erreur réseau passagère — on continue
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [campayRef, pollingStatus]);
 
   const trip = mockTrip ?? liveTrip;
 
@@ -124,6 +192,10 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
     ? computeFamilyPrice(trip, seats, children)
     : computePrice(trip, seats);
 
+  // Remise -200 F CFA pour paiement digital (MTN / Orange)
+  const digitalDiscount = paymentMethod && isDigitalPayment(paymentMethod) ? DIGITAL_PAYMENT_DISCOUNT_XAF : 0;
+  const effectiveTotal = Math.max(0, price.total - digitalDiscount);
+
   const departure = new Date(trip.departureAt);
 
   /**
@@ -137,21 +209,48 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
     setPayError(null);
 
     const isLive = !mockTrip; // trip vient de l'API
+
+    // ── Trajets mock : comportement démo inchangé ──────────────
     if (!isLive) {
-      // Trajet mock — comportement démo inchangé
       setTimeout(() => {
         setProcessing(false);
         setStep('success');
-        clearDiasporaFlow(); // fin du flow : on nettoie le flag sessionStorage
+        clearDiasporaFlow();
       }, 2500);
       return;
     }
 
     try {
-      const { booking } = await ApiClient.createBooking({ tripId, seats });
+      // 1. Créer la réservation (statut PENDING)
+      const apiPaymentMethod = paymentMethod === 'cash' ? 'CASH' : 'MOBILE_MONEY';
+      const { booking } = await ApiClient.createBooking({ tripId, seats, paymentMethod: apiPaymentMethod });
       setBookingRef(booking.reference);
+      if (booking.conversationId) setConversationId(booking.conversationId);
+
+      // 2a. Cash → aucun paiement électronique, succès immédiat
+      if (paymentMethod === 'cash') {
+        setStep('success');
+        clearDiasporaFlow();
+        return;
+      }
+
+      // 2b. MTN / Orange → initier paiement Campay
+      if (paymentMethod === 'mtn' || paymentMethod === 'orange') {
+        const operator = paymentMethod === 'mtn' ? 'MTN' : 'ORANGE';
+        const result = await ApiClient.initiatePayment({
+          bookingId: booking.id,
+          phone,
+          operator,
+        });
+        setCampayRef(result.campayRef);
+        setPollingStatus('polling');
+        // Le useEffect de polling prend le relais
+        return;
+      }
+
+      // 2c. Autres méthodes (card, paypal, bancontact…) → succès démo pour l'instant
       setStep('success');
-      clearDiasporaFlow(); // fin du flow : on nettoie le flag sessionStorage
+      clearDiasporaFlow();
     } catch (err) {
       if (err instanceof ApiError) {
         setPayError(err.message);
@@ -266,39 +365,50 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
 
         {step === 'pay' && paymentMethod && (
           <>
-            {/* Banner DEV — à retirer dès que CinetPay / Campay seront branchés.
-                La réservation côté DB est créée, mais le débit Mobile Money / carte est simulé. */}
-            <div
-              role="alert"
-              className="mb-4 flex items-start gap-2.5 rounded-card border-2 border-sbs-yellow bg-sbs-yellow-light/40 p-3 text-[12px] leading-relaxed text-sbs-yellow-dark"
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <strong>Démo — aucun débit réel.</strong>{' '}
-                Pour les trajets de la base de données, la réservation est créée
-                (statut PENDING). Le débit Mobile Money / carte sera ajouté via CinetPay
-                ou Campay avant la mise en production.
-              </div>
-            </div>
-
-            {payError && (
-              <div role="alert" className="mb-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
-                <p className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {payError}
-                </p>
+            {/* Écran de polling Mobile Money */}
+            {pollingStatus === 'polling' && (
+              <div className="flex flex-col items-center gap-5 py-12 text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-sbs-blue" />
+                <div>
+                  <p className="font-display text-base font-bold text-sbs-dark">
+                    En attente de confirmation…
+                  </p>
+                  <p className="mt-1 text-sm text-sbs-muted">
+                    Validez le paiement sur votre téléphone
+                  </p>
+                </div>
+                <div className="rounded-card border border-sbs-border bg-white p-4 text-sm text-sbs-muted w-full max-w-sm">
+                  <p className="font-semibold text-sbs-dark mb-1">Comment valider ?</p>
+                  <p>MTN : composez <strong>*126#</strong> ou approuvez la notification reçue sur votre téléphone.</p>
+                  <p className="mt-1">Orange : composez <strong>#150#</strong> ou approuvez via l'app Orange Money.</p>
+                </div>
               </div>
             )}
 
-            <PaymentForm
-              method={paymentMethod}
-              bookingMode={bookingMode}
-              phone={phone}
-              onPhoneChange={setPhone}
-              totalAmount={price.total}
-              processing={processing}
-              onPay={handlePay}
-            />
+            {pollingStatus !== 'polling' && (
+              <>
+                {payError && (
+                  <div role="alert" className="mb-4 rounded-card border border-sbs-red/30 bg-sbs-red/5 p-3 text-[12px] text-sbs-red">
+                    <p className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {payError}
+                    </p>
+                  </div>
+                )}
+
+                <PaymentForm
+                  method={paymentMethod}
+                  bookingMode={bookingMode}
+                  phone={phone}
+                  onPhoneChange={setPhone}
+                  totalAmount={effectiveTotal}
+                  originalTotal={price.total}
+                  digitalDiscount={digitalDiscount}
+                  processing={processing}
+                  onPay={handlePay}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -309,9 +419,11 @@ export function Booking({ tripId, seats, initialMode, onNavigate }: BookingProps
             bookingRef={bookingRef}
             departure={departure}
             paymentMethod={paymentMethod}
+            totalPaid={effectiveTotal}
             bookingMode={bookingMode}
             beneficiary={beneficiary}
             childrenCount={children.length}
+            conversationId={conversationId}
             onNavigate={onNavigate}
           />
         )}
@@ -716,9 +828,9 @@ function RecapStep({ trip, departure, seats, bookingMode, beneficiary, children,
 
 function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
   total: number;
-  paymentMethod: PaymentMethod | null;
+  paymentMethod: ExtendedPaymentMethod | null;
   bookingMode: BookingMode;
-  onSelect: (m: PaymentMethod) => void;
+  onSelect: (m: ExtendedPaymentMethod) => void;
   onNext: () => void;
 }) {
   const methods = getOrderedPaymentMethods(bookingMode);
@@ -730,6 +842,20 @@ function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
           {bookingMode === 'gift' ? formatDualCFAEUR(total) : formatXAF(total)}
         </strong>
       </p>
+
+      {/* Bannière remise paiement digital */}
+      {bookingMode !== 'gift' && (
+        <div className="rounded-card border border-emerald-200 bg-emerald-50 p-3 text-[12px] leading-relaxed text-emerald-700">
+          <p className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Payez par <strong>MTN MoMo</strong> ou <strong>Orange Money</strong> et
+              bénéficiez d'une remise de{' '}
+              <strong className="text-emerald-800">−{DIGITAL_PAYMENT_DISCOUNT_XAF.toLocaleString('fr-FR')} F CFA</strong>.
+            </span>
+          </p>
+        </div>
+      )}
 
       {bookingMode === 'gift' && (
         <div className="rounded-card border border-sbs-blue/20 bg-sbs-blue-light/40 p-3 text-[12px] leading-relaxed text-sbs-blue">
@@ -744,9 +870,36 @@ function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
       )}
 
       <div className="space-y-2">
+        {/* Option Cash — toujours en premier pour les non-diaspora */}
+        {bookingMode !== 'gift' && (
+          <button
+            type="button"
+            onClick={() => onSelect('cash')}
+            className={cn(
+              'relative flex w-full items-center gap-3 rounded-card-lg border-2 p-4 text-left transition-all',
+              paymentMethod === 'cash'
+                ? 'border-sbs-green bg-emerald-50 shadow-card scale-[1.01]'
+                : 'border-sbs-border bg-white hover:border-sbs-green/40 hover:shadow-soft',
+            )}
+          >
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-card-lg text-2xl"
+              style={{ background: CASH_PAYMENT_INFO.brandColor, color: CASH_PAYMENT_INFO.textColor }}>
+              {CASH_PAYMENT_INFO.emoji}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-display text-sm font-extrabold text-sbs-dark">{CASH_PAYMENT_INFO.label}</span>
+              </div>
+              <div className="text-xs text-sbs-muted">{CASH_PAYMENT_INFO.description}</div>
+            </div>
+            {paymentMethod === 'cash' && <CheckCircle2 className="h-5 w-5 shrink-0 text-sbs-green" />}
+          </button>
+        )}
+
         {methods.map((m) => {
           const isPayPal = m.id === 'paypal';
           const recommended = bookingMode === 'gift' && (m.id === 'paypal' || m.id === 'card');
+          const hasDiscount = bookingMode !== 'gift' && isDigitalPayment(m.id);
           return (
             <button
               key={m.id}
@@ -771,10 +924,11 @@ function MethodStep({ total, paymentMethod, bookingMode, onSelect, onNext }: {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-display text-sm font-extrabold text-sbs-dark">{m.label}</span>
-                  {recommended && (
-                    <Badge tone="blue" className="text-[10px]">
-                      Recommandé
-                    </Badge>
+                  {recommended && <Badge tone="blue" className="text-[10px]">Recommandé</Badge>}
+                  {hasDiscount && (
+                    <span className="rounded-pill border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                      −{DIGITAL_PAYMENT_DISCOUNT_XAF} F
+                    </span>
                   )}
                 </div>
                 <div className="text-xs text-sbs-muted">{m.description}</div>
@@ -846,16 +1000,19 @@ function Line({ label, value, highlight, subtle }: { label: string; value: strin
   );
 }
 
-function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, processing, onPay }: {
-  method: PaymentMethod;
+function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, originalTotal, digitalDiscount, processing, onPay }: {
+  method: ExtendedPaymentMethod;
   bookingMode: BookingMode;
   phone: string;
   onPhoneChange: (v: string) => void;
   totalAmount: number;
+  originalTotal: number;
+  digitalDiscount: number;
   processing: boolean;
   onPay: () => void;
 }) {
-  const info = getPaymentInfo(method);
+  const info = getExtendedPaymentInfo(method);
+  const isCash = method === 'cash';
   const phoneValid = (method === 'mtn' || method === 'orange') ? validatePhoneCM(phone).valid : true;
   const canPay = phoneValid;
   const isPayPal = method === 'paypal';
@@ -885,11 +1042,33 @@ function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, p
           </>
         ) : (
           <>
-            <div className="mt-4 text-3xl font-extrabold tracking-tight">{formatXAF(totalAmount)}</div>
-            <div className="text-[11px] opacity-80">à débiter en une fois</div>
+            {digitalDiscount > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-lg line-through opacity-60">{formatXAF(originalTotal)}</span>
+                <span className="rounded-pill bg-white/20 px-2 py-0.5 text-[11px] font-bold">
+                  −{digitalDiscount} F
+                </span>
+              </div>
+            )}
+            <div className="mt-1 text-3xl font-extrabold tracking-tight">{formatXAF(totalAmount)}</div>
+            <div className="text-[11px] opacity-80">
+              {isCash ? 'à remettre au chauffeur à l\'arrivée' : 'à débiter en une fois'}
+            </div>
           </>
         )}
       </div>
+
+      {/* Instruction Cash */}
+      {isCash && (
+        <section className="rounded-card-lg border-2 border-emerald-200 bg-emerald-50 p-5 shadow-card">
+          <h3 className="mb-2 font-display text-sm font-extrabold text-emerald-800">Instructions paiement Cash</h3>
+          <ul className="space-y-1.5 text-[12px] text-emerald-700">
+            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Préparez l'appoint exact : <strong>{formatXAF(totalAmount)}</strong></li>
+            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Remettez la somme au chauffeur <strong>à destination</strong>, après le trajet</li>
+            <li className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Demandez un reçu oral ou par SMS pour confirmation</li>
+          </ul>
+        </section>
+      )}
 
       {(method === 'mtn' || method === 'orange') && (
         <section className="rounded-card-lg border border-sbs-border bg-white p-5 shadow-card">
@@ -971,6 +1150,8 @@ function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, p
       <Button variant="primary" size="lg" onClick={onPay} disabled={!canPay || processing} className="w-full rounded-pill">
         {processing ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Traitement en cours…</>
+        ) : isCash ? (
+          <><CheckCircle2 className="h-4 w-4" /> Confirmer la réservation (Cash)</>
         ) : isPayPal ? (
           <><PayPalLogo size={16} /> Payer avec PayPal {useEurAsPrimary ? formatEUR(totalEur) : formatXAF(totalAmount)}</>
         ) : (
@@ -981,27 +1162,40 @@ function PaymentForm({ method, bookingMode, phone, onPhoneChange, totalAmount, p
   );
 }
 
-function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, bookingMode, beneficiary, childrenCount, onNavigate }: {
+function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, totalPaid, bookingMode, beneficiary, childrenCount, conversationId, onNavigate }: {
   trip: NonNullable<ReturnType<typeof findTrip>>;
   seats: number;
   bookingRef: string;
   departure: Date;
-  paymentMethod: PaymentMethod | null;
+  paymentMethod: ExtendedPaymentMethod | null;
+  totalPaid: number;
   bookingMode: BookingMode;
   beneficiary: Beneficiary;
   childrenCount: number;
+  conversationId: string | null;
   onNavigate: (s: Screen, params?: Record<string, string>) => void;
 }) {
+  const isCash = paymentMethod === 'cash';
   return (
     <div className="space-y-4 text-center">
-      <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-sbs-green to-emerald-400 text-white shadow-card">
-        <CheckCircle2 className="h-10 w-10" />
+      <div className={`mx-auto grid h-20 w-20 place-items-center rounded-full text-white shadow-card ${isCash ? 'bg-gradient-to-br from-amber-400 to-orange-400' : 'bg-gradient-to-br from-sbs-green to-emerald-400'}`}>
+        {isCash ? <Clock className="h-10 w-10" /> : <CheckCircle2 className="h-10 w-10" />}
       </div>
       <div>
-        <h2 className="font-display text-2xl font-extrabold text-sbs-dark">Réservation confirmée !</h2>
+        <h2 className="font-display text-2xl font-extrabold text-sbs-dark">
+          {isCash ? 'Demande envoyée !' : 'Réservation confirmée !'}
+        </h2>
         <p className="mt-1 text-sm text-sbs-muted">
-          {paymentMethod && `Paiement par ${getPaymentInfo(paymentMethod).shortLabel} validé`}
+          {paymentMethod && (isCash
+            ? 'En attente de confirmation du chauffeur'
+            : `Paiement par ${getExtendedPaymentInfo(paymentMethod).shortLabel} validé`)}
         </p>
+        {isCash && (
+          <p className="mt-2 rounded-card border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+            ⏳ Le chauffeur va accepter ou refuser votre demande. Vous serez notifié dans la messagerie.
+          </p>
+        )}
+      </div>
         {bookingMode === 'gift' && (
           <p className="mt-2 text-sm font-semibold text-sbs-yellow-dark">
             🎁 SMS envoyé à {beneficiary.firstName} {beneficiary.lastName}
@@ -1012,7 +1206,6 @@ function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, book
             👨‍👧 {childrenCount} enfant{childrenCount > 1 ? 's' : ''} déclaré{childrenCount > 1 ? 's' : ''}
           </p>
         )}
-      </div>
 
       <article className="mx-auto max-w-md overflow-hidden rounded-card-lg border-2 border-sbs-blue/20 bg-white text-left shadow-card">
         <div className="bg-sbs-blue px-5 py-3 text-white">
@@ -1046,6 +1239,12 @@ function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, book
               <div className="text-[10px] font-bold uppercase tracking-wider text-sbs-muted">Chauffeur</div>
               <div className="text-sm font-bold text-sbs-dark">{trip.driver.name.split(' ')[0]}</div>
             </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-sbs-muted">
+                {isCash ? 'Montant à payer' : 'Montant payé'}
+              </div>
+              <div className="text-sm font-bold text-sbs-dark">{formatXAF(totalPaid)}</div>
+            </div>
           </div>
           <div className="flex items-start gap-2 text-xs">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sbs-blue" />
@@ -1058,8 +1257,14 @@ function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, book
       </article>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-        <Button variant="primary" size="lg" onClick={() => onNavigate('messages')} className="rounded-pill">
-          <Phone className="h-4 w-4" /> Contacter le chauffeur
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={() => onNavigate('messages')}
+          className="rounded-pill"
+        >
+          <Phone className="h-4 w-4" />
+          {conversationId ? 'Parler au chauffeur' : 'Messagerie'}
         </Button>
         <Button variant="ghost" size="lg" onClick={() => onNavigate('landing')}>
           Retour à l'accueil
@@ -1068,4 +1273,5 @@ function SuccessScreen({ trip, seats, bookingRef, departure, paymentMethod, book
     </div>
   );
 }
+
 
