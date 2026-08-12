@@ -45,6 +45,7 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
   useEffect(() => {
     if (mockTrip) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset loading state before fetching the trip from the API
     setLoading(true);
     ApiClient.getTrip(tripId)
       .then(({ trip }) => { if (!cancelled) setLiveTrip(adaptApiTrip(trip)); })

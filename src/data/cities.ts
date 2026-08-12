@@ -28,3 +28,28 @@ const DISTANCES: Record<string, Record<string, number>> = {
 export function distanceBetween(fromId: string, toId: string): number {
   return DISTANCES[fromId]?.[toId] ?? DISTANCES[toId]?.[fromId] ?? 0;
 }
+
+/* ============================================================
+   POINTS DE DÉPART SUGGÉRÉS
+   ============================================================ */
+
+export interface DeparturePoint {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+/** Points de départ suggérés par ville (carrefours connus, faciles à trouver). */
+export const DEPARTURE_POINTS: Record<string, DeparturePoint[]> = {
+  douala: [
+    { name: 'Carrefour Ndokoti',      lat: 4.0511, lng: 9.7679 },
+    { name: 'Carrefour Deido',         lat: 4.0601, lng: 9.7051 },
+    { name: 'Carrefour Bonamoussadi',  lat: 4.0789, lng: 9.7412 },
+    { name: 'Carrefour Bassa',         lat: 3.9998, lng: 9.7523 },
+  ],
+  bafoussam: [
+    { name: 'Marché A',                lat: 5.4737, lng: 10.4172 },
+    { name: 'Carrefour Bamendzi',      lat: 5.4812, lng: 10.4098 },
+    { name: 'Gare routière centrale',  lat: 5.4701, lng: 10.4221 },
+  ],
+};

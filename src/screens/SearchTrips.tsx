@@ -48,14 +48,12 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
   // Indique si l'utilisateur arrive depuis /diaspora (a clique "Offrir un trajet").
   // On affiche alors un bandeau de contexte au-dessus de la recherche pour
   // qu'il comprenne que son choix de trajet aboutira sur le formulaire beneficiaire.
-  const [diasporaActive, setDiasporaActive] = useState(false);
-  useEffect(() => {
-    setDiasporaActive(isDiasporaFlow());
-  }, []);
+  const [diasporaActive, setDiasporaActive] = useState(() => isDiasporaFlow());
 
   // Recherche live côté API à chaque changement de filtre
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset loading/error state before starting the async fetch triggered by this effect
     setApiLoading(true);
     setApiError(null);
     ApiClient.searchTrips({
@@ -300,7 +298,7 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
         </section>
       </main>
 
-      <BottomNav active="search" onNavigate={onNavigate} messagesUnread={0} />
+      <BottomNav active="search" onNavigate={onNavigate} />
     </div>
   );
 }
@@ -562,3 +560,4 @@ function EmptyResults({ onNavigate }: { onNavigate: (s: Screen, params?: Record<
 
 /* Adaptateur ApiTrip → Trip déplacé dans `@/lib/tripAdapter` pour
    être partagé avec TripDetail + Booking (recherche live d'un trajet par id). */
+

@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ApiClient, ApiError } from '@/lib/api';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
-import { SBS_COMMISSION_RATE } from '@/lib/booking';
+import { getCommissionRate } from '@/lib/commissionTiers';
 import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, isBargainPrice, ABSOLUTE_MIN_PRICE, CATEGORY_INFO } from '@/lib/category';
 import type { Screen, TripOption, VehicleType } from '@/lib/types';
 
@@ -108,6 +108,9 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   const [publishedTripId, setPublishedTripId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Aller-retour
+  const [withReturn, setWithReturn] = useState(false);
+  const [returnTime, setReturnTime] = useState('17:00');
 
   // Si l'utilisateur arrive ici sans être connecté (ex. URL directe), on lui
   // demande d'abord de se connecter / créer un compte avant le formulaire.
@@ -161,7 +164,10 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   const fromCity = CITIES.find((c) => c.id === form.fromId)!;
   const toCity = CITIES.find((c) => c.id === form.toId)!;
 
-  const commission = Math.round(form.pricePerSeat * SBS_COMMISSION_RATE);
+  // Taux estimé pour l'aperçu (conservateur = palier débutant 15 %).
+  // Le vrai taux dépend des trajets du mois en cours (10 à 15 %).
+  const commissionRate = getCommissionRate(0);
+  const commission = Math.round(form.pricePerSeat * commissionRate);
   const driverEarningPerSeat = form.pricePerSeat - commission;
   const driverTotalEarning = driverEarningPerSeat * form.seats;
 
@@ -204,6 +210,25 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
         options: form.options.map((o) => OPTION_TO_API[o]),
       });
       setPublishedTripId(trip.id);
+
+      // Si aller-retour : publier aussi le trajet retour (villes inversées, même date)
+      if (withReturn) {
+        const [rhh, rmm] = returnTime.split(':').map(Number);
+        const returnDeparture = new Date(form.date);
+        returnDeparture.setHours(rhh ?? 0, rmm ?? 0, 0, 0);
+        await ApiClient.publishTrip({
+          fromCity: form.toId,
+          toCity: form.fromId,
+          pickupPoint: form.dropoffPoint.trim(),
+          dropoffPoint: form.pickupPoint.trim(),
+          departureAt: returnDeparture.toISOString(),
+          durationMin: estimateDurationMin(form.toId, form.fromId),
+          seatsTotal: form.seats,
+          pricePerSeat: form.pricePerSeat,
+          options: form.options.map((o) => OPTION_TO_API[o]),
+        });
+      }
+
       setPublished(true);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -217,7 +242,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
     }
   }
 
-  if (published) return <PublishSuccess form={form} fromCity={fromCity} toCity={toCity} tripId={publishedTripId} onNavigate={onNavigate} />;
+  if (published) return <PublishSuccess form={form} fromCity={fromCity} toCity={toCity} tripId={publishedTripId} withReturn={withReturn} returnTime={returnTime} onNavigate={onNavigate} />;
 
   return (
     <div className="min-h-screen bg-sbs-cream pb-32">
@@ -285,6 +310,44 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               onChange={(time) => update({ time })}
             />
           </div>
+        </Section>
+
+        {/* Aller-retour */}
+        <Section title="🔄 Trajet retour">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-sbs-dark">Publier aussi le retour</p>
+              <p className="text-[11px] text-sbs-muted">{toCity.name} → {fromCity.name} le même jour</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWithReturn((v) => !v)}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+                withReturn ? 'bg-sbs-blue' : 'bg-gray-200',
+              )}
+              role="switch"
+              aria-checked={withReturn}
+            >
+              <span className={cn(
+                'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200',
+                withReturn ? 'translate-x-5' : 'translate-x-0',
+              )} />
+            </button>
+          </div>
+
+          {withReturn && (
+            <div className="mt-4 rounded-card border border-sbs-blue/20 bg-sbs-blue-light/30 p-3">
+              <TimeInput
+                label={`Heure de départ retour (${toCity.name} → ${fromCity.name})`}
+                value={returnTime}
+                onChange={setReturnTime}
+              />
+              <p className="mt-2 text-[11px] text-sbs-muted">
+                💡 Les points de RDV seront automatiquement inversés (départ = votre point d'arrivée aller).
+              </p>
+            </div>
+          )}
         </Section>
 
         {/* Véhicule */}
@@ -501,7 +564,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               <Row label={`Prix par passager`} value={formatXAF(form.pricePerSeat)} />
               <Row label={`Nombre de places`} value={`× ${form.seats}`} subtle />
               <Row label="Sous-total" value={formatXAF(form.pricePerSeat * form.seats)} subtle />
-              <Row label={`Commission SideBySide (${(SBS_COMMISSION_RATE * 100).toFixed(0)} %)`} value={`− ${formatXAF(commission * form.seats)}`} subtle />
+              <Row label={`Commission SideBySide (10–15 % selon palier)`} value={`− ${formatXAF(commission * form.seats)}`} subtle />
               <div className="border-t border-sbs-yellow/40 pt-2" />
               <Row label="Vos gains nets" value={formatXAF(driverTotalEarning)} highlight />
             </dl>
@@ -539,7 +602,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
             className="rounded-pill min-w-[200px]"
           >
             <Car className="h-4 w-4" />
-            {submitting ? 'Publication…' : 'Publier le trajet'}
+            {submitting ? 'Publication…' : withReturn ? 'Publier aller + retour' : 'Publier le trajet'}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -574,11 +637,13 @@ function DriverRequired({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   );
 }
 
-function PublishSuccess({ form, fromCity, toCity, tripId, onNavigate }: {
+function PublishSuccess({ form, fromCity, toCity, tripId, withReturn, returnTime, onNavigate }: {
   form: FormState;
   fromCity: { name: string };
   toCity: { name: string };
   tripId: string | null;
+  withReturn: boolean;
+  returnTime: string;
   onNavigate: (s: Screen) => void;
 }) {
   return (
@@ -593,10 +658,17 @@ function PublishSuccess({ form, fromCity, toCity, tripId, onNavigate }: {
         <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-sbs-green to-emerald-400 text-white shadow-card">
           <CheckCircle2 className="h-10 w-10" />
         </div>
-        <h2 className="font-display text-2xl font-extrabold text-sbs-dark">Trajet publié ! 🎉</h2>
+        <h2 className="font-display text-2xl font-extrabold text-sbs-dark">
+          {withReturn ? '2 trajets publiés ! 🎉' : 'Trajet publié ! 🎉'}
+        </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
           Votre trajet <strong className="text-sbs-dark">{fromCity.name} → {toCity.name}</strong> le {form.date} à {form.time} est désormais visible des passagers.
         </p>
+        {withReturn && (
+          <p className="mx-auto mt-1 max-w-md text-sm text-sbs-muted">
+            + Retour <strong className="text-sbs-dark">{toCity.name} → {fromCity.name}</strong> le {form.date} à {returnTime} également publié.
+          </p>
+        )}
         {tripId && (
           <p className="mt-2 text-[11px] text-sbs-muted">
             ID trajet : <code className="rounded bg-sbs-border-soft px-1 font-mono text-[10px]">{tripId}</code>
