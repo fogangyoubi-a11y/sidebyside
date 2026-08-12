@@ -214,7 +214,7 @@ export function Messages({ onNavigate }: MessagesProps) {
         )}
       </main>
 
-      <BottomNav active="messages" onNavigate={onNavigate} messagesUnread={0} />
+      <BottomNav active="messages" onNavigate={onNavigate} />
     </div>
   );
 }

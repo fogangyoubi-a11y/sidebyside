@@ -104,6 +104,7 @@ export function MessageThread({ conversation, backendConversationId, onBack, onN
     // Mode legacy mock (ancienne signature) — simulation locale + auto-réponse.
     if (!isLive || !backendConversationId) {
       const newMsg: Message = {
+        // eslint-disable-next-line react-hooks/purity -- generates a local temp message id in an event handler, not during render
         id: `m${Date.now()}`,
         sender: 'me',
         text: trimmed,
@@ -125,6 +126,7 @@ export function MessageThread({ conversation, backendConversationId, onBack, onN
     }
 
     // Mode live : optimistic update + POST API. Le backend masque les numéros.
+    // eslint-disable-next-line react-hooks/purity -- generates a local temp message id in an event handler, not during render
     const tempId = `tmp-${Date.now()}`;
     const optimistic: Message = {
       id: tempId,
@@ -331,3 +333,4 @@ function apiMsgToUi(m: ApiMessage, myId: string): Message {
     read: m.readAt != null,
   };
 }
+

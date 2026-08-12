@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Car, Calendar, MessageCircle, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
+import { ApiClient } from '@/lib/api';
 import type { Screen } from '@/lib/types';
 
 /** Onglet actif sur la barre du bas. */
@@ -45,9 +46,29 @@ const TABS: TabDef[] = [
  * - Auth gate auto : si l'utilisateur n'est pas connecté, popup login/register
  * - Bonus : badge rouge sur Messages si messages non lus
  */
-export function BottomNav({ active, onNavigate, messagesUnread = 0 }: BottomNavProps) {
+export function BottomNav({ active, onNavigate }: BottomNavProps) {
   const { isAuthenticated } = useAuth();
   const [authGate, setAuthGate] = useState<TabDef | null>(null);
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unread badge when auth state changes before (re)fetching
+    if (!isAuthenticated) { setTotalUnread(0); return; }
+
+    let cancelled = false;
+    async function fetchUnread() {
+      try {
+        const { conversations } = await ApiClient.getConversations();
+        if (!cancelled) {
+          setTotalUnread(conversations.reduce((sum, c) => sum + c.unreadCount, 0));
+        }
+      } catch { /* silently ignore */ }
+    }
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isAuthenticated]);
 
   function handleTabClick(tab: TabDef) {
     if (tab.requiresAuth && !isAuthenticated) {
@@ -68,7 +89,7 @@ export function BottomNav({ active, onNavigate, messagesUnread = 0 }: BottomNavP
           {TABS.map((tab) => {
             const isActive = tab.id === active;
             const Icon = tab.icon;
-            const showBadge = tab.id === 'messages' && messagesUnread > 0;
+            const showBadge = tab.id === 'messages' && totalUnread > 0;
             return (
               <button
                 key={tab.id}
@@ -95,7 +116,7 @@ export function BottomNav({ active, onNavigate, messagesUnread = 0 }: BottomNavP
                       aria-hidden
                       className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-sbs-red px-1 text-[9px] font-extrabold text-white shadow-soft"
                     >
-                      {messagesUnread > 9 ? '9+' : messagesUnread}
+                      {totalUnread > 9 ? '9+' : totalUnread}
                     </span>
                   )}
                 </span>
@@ -128,3 +149,4 @@ export function BottomNav({ active, onNavigate, messagesUnread = 0 }: BottomNavP
  * aux conteneurs des écrans qui la contiennent).
  */
 export const BOTTOM_NAV_HEIGHT_CLASS = 'pb-20';
+
