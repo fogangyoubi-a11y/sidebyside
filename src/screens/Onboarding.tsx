@@ -655,6 +655,7 @@ function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext, devCode, ap
   const validation = validatePhoneCM(phoneLocal);
   const complete = isOtpComplete(otp);
   const expired = isOtpExpired(otp);
+  // eslint-disable-next-line react-hooks/purity -- resend-cooldown check re-evaluated on each tick via OtpInput6's interval, not a pure render computation
   const canResend = Date.now() >= otp.resendAt;
 
   return (
@@ -703,7 +704,10 @@ function OtpStep({ phoneLocal, otp, onOtp, onResend, onBack, onNext, devCode, ap
             canResend ? 'text-sbs-blue hover:underline' : 'cursor-not-allowed text-sbs-muted/60',
           )}
         >
-          {canResend ? 'Renvoyer le code' : `Renvoyer dans ${Math.max(0, Math.ceil((otp.resendAt - Date.now()) / 1000))}s`}
+          {canResend ? 'Renvoyer le code' : (
+            // eslint-disable-next-line react-hooks/purity -- countdown text re-evaluated on each tick, not a pure render computation
+            `Renvoyer dans ${Math.max(0, Math.ceil((otp.resendAt - Date.now()) / 1000))}s`
+          )}
         </button>
       </p>
 
