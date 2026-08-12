@@ -35,6 +35,7 @@ export function OtpInput6({ state, onChange, onComplete, onExpire }: OtpInput6Pr
 
   const expired = isOtpExpired(state);
   const blocked = state.attemptsLeft <= 0 || expired;
+  // eslint-disable-next-line react-hooks/purity -- countdown display recomputed each tick via the interval above, not a pure render computation
   const remainingSec = Math.max(0, Math.floor((state.expiresAt - Date.now()) / 1000));
   const min = Math.floor(remainingSec / 60);
   const sec = remainingSec % 60;

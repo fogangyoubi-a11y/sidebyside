@@ -89,7 +89,12 @@ export function validatePhoneCM(raw: string): PhoneValidation {
 
 /** Formatte au fil de la saisie : transforme "691234567" en "691 23 45 67". */
 export function formatPhoneCMLive(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 9);
+  // Retire le préfixe pays si l'utilisateur colle le numéro complet
+  let stripped = raw;
+  if (stripped.startsWith('+237')) stripped = stripped.slice(4);
+  else if (stripped.startsWith('00237')) stripped = stripped.slice(5);
+  else if (stripped.startsWith('237') && stripped.replace(/\D/g, '').length > 9) stripped = stripped.slice(3);
+  const digits = stripped.replace(/\D/g, '').slice(0, 9);
   if (digits.length <= 3) return digits;
   if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
   if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`;
@@ -139,7 +144,7 @@ export function suggestStrongPassword(): string {
   const cities = ['Douala', 'Yaoundé', 'Bamenda', 'Bafoussam', 'Kribi', 'Limbé', 'Dschang', 'Garoua', 'Maroua'];
   const symbols = ['!', '@', '#', '$', '%', '&', '*', '+'];
   const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
-  let c1 = pick(cities);
+  const c1 = pick(cities);
   let c2 = pick(cities);
   while (c2 === c1) c2 = pick(cities);
   const sym = pick(symbols);
@@ -264,3 +269,4 @@ export function computeTrustLevel(profile: TrustProfile, role: 'passenger' | 'dr
   if (baseVerified && profile.tripsCompleted >= 20 && profile.noIncidents) return 'premium';
   return 'verified';
 }
+

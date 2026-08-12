@@ -42,6 +42,7 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     const token = getAccessToken();
     if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- signal loading before fetching the fresh profile on mount
     setLoading(true);
     ApiClient.me()
       .then(({ user: u }) => {
@@ -55,6 +56,18 @@ export function useAuth(): UseAuthReturn {
       .finally(() => setLoading(false));
   }, []);
 
+  // Écoute l'événement global émis par api() quand le refresh token
+  // est révoqué ou expiré — déconnexion propre sans action utilisateur.
+  useEffect(() => {
+    function handleSessionExpired() {
+      clearTokens();
+      localStorage.removeItem(USER_KEY);
+      setUser(null);
+    }
+    window.addEventListener('sbs:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('sbs:session-expired', handleSessionExpired);
+  }, []);
+
   const login = useCallback(async (phone: string, password: string) => {
     const res = await ApiClient.login(phone, password);
     setTokens(res.accessToken, res.refreshToken);
@@ -63,6 +76,7 @@ export function useAuth(): UseAuthReturn {
     return res.user;
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler isn't enabled in this project's build; informational only
   const register = useCallback(async (data: Parameters<typeof ApiClient.register>[0]) => {
     const res = await ApiClient.register(data);
     setTokens(res.accessToken, res.refreshToken);
@@ -130,3 +144,4 @@ export function consumePendingAction(): PendingBooking | null {
     return null;
   }
 }
+
