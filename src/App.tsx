@@ -11,6 +11,10 @@ import { PublishTrip } from '@/screens/PublishTrip';
 import { Messages } from '@/screens/Messages';
 import { MyTrips } from '@/screens/MyTrips';
 import { Profile } from '@/screens/Profile';
+import { DriverWalletScreen } from '@/screens/DriverWallet';
+import { Legal } from '@/screens/Legal';
+import { Contact } from '@/screens/Contact';
+import { Admin } from '@/screens/Admin';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { useScreenNavigate } from '@/lib/routing';
 
@@ -20,6 +24,7 @@ const DiasporaLanding = lazy(() => import('@/screens/DiasporaLanding'));
 import {
   SEO_LANDING, SEO_DIASPORA, SEO_ONBOARDING, SEO_LOGIN, SEO_SEARCH,
   SEO_TRIP_DETAIL, SEO_BOOKING, SEO_PUBLISH, SEO_MY_TRIPS, SEO_MESSAGES, SEO_PROFILE,
+  SEO_LEGAL, SEO_CONTACT, SEO_ADMIN,
 } from '@/lib/seo';
 
 /* ============================================================
@@ -181,6 +186,46 @@ function ProfileRoute() {
   );
 }
 
+function WalletRoute() {
+  const navigate = useScreenNavigate();
+  return (
+    <>
+      <SeoHead title="Mon portefeuille" description="Gérez vos gains et reversements de commission." noindex />
+      <DriverWalletScreen onNavigate={navigate} />
+    </>
+  );
+}
+
+function LegalRoute() {
+  const navigate = useScreenNavigate();
+  return (
+    <>
+      <SeoHead {...SEO_LEGAL} />
+      <Legal onNavigate={navigate} />
+    </>
+  );
+}
+
+function ContactRoute() {
+  const navigate = useScreenNavigate();
+  return (
+    <>
+      <SeoHead {...SEO_CONTACT} />
+      <Contact onNavigate={navigate} />
+    </>
+  );
+}
+
+function AdminRoute() {
+  const navigate = useScreenNavigate();
+  return (
+    <>
+      <SeoHead {...SEO_ADMIN} />
+      <Admin onNavigate={navigate} />
+    </>
+  );
+}
+
 function NotFoundRoute() {
   const navigate = useScreenNavigate();
   return (
@@ -210,6 +255,10 @@ function App() {
       <Route path="/trip/:tripId" element={<TripDetailRoute />} />
       <Route path="/booking/:tripId" element={<BookingRoute />} />
       <Route path="/publish" element={<PublishRoute />} />
+      <Route path="/wallet" element={<WalletRoute />} />
+      <Route path="/legal" element={<LegalRoute />} />
+      <Route path="/contact" element={<ContactRoute />} />
+      <Route path="/admin" element={<AdminRoute />} />
       <Route path="/my-trips" element={<MyTripsRoute />} />
       <Route path="/messages" element={<MessagesRoute />} />
       <Route path="/profile" element={<ProfileRoute />} />

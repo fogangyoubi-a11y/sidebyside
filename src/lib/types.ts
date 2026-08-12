@@ -24,6 +24,9 @@ export type Screen =
   | 'my-trips'
   | 'messages'
   | 'profile'
+  | 'legal'
+  | 'contact'
+  | 'wallet'
   | 'admin';
 
 export type TripStatus = 'available' | 'full' | 'departed' | 'completed' | 'cancelled';

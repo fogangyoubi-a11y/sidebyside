@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Settings, Bell, ShieldCheck, FileText, HelpCircle, Smartphone, Star, Car, ChevronRight, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { LogOut, Settings, Bell, ShieldCheck, FileText, HelpCircle, Smartphone, Star, Car, Wallet, ChevronRight, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { SbsLogo } from '@/components/ui/SbsLogo';
@@ -150,6 +150,14 @@ export function Profile({ onNavigate }: ProfileProps) {
 
         {/* Liens menu */}
         <section className="mt-4 overflow-hidden rounded-card-lg border border-sbs-border bg-white shadow-soft">
+          {display.role === 'DRIVER' && (
+            <MenuLink
+              icon={<Wallet className="h-4 w-4" />}
+              label="Mon portefeuille"
+              sublabel="Gains, commissions, retraits"
+              onClick={() => onNavigate('wallet')}
+            />
+          )}
           <MenuLink
             icon={<Star className="h-4 w-4" />}
             label="Mes avis"
@@ -200,7 +208,7 @@ export function Profile({ onNavigate }: ProfileProps) {
         </p>
       </main>
 
-      <BottomNav active="profile" onNavigate={onNavigate} messagesUnread={0} />
+      <BottomNav active="profile" onNavigate={onNavigate} />
     </div>
   );
 }
@@ -231,15 +239,17 @@ function KycRow({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-function MenuLink({ icon, label, sublabel, isLast }: {
+function MenuLink({ icon, label, sublabel, isLast, onClick }: {
   icon: React.ReactNode;
   label: string;
   sublabel?: string;
   isLast?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={cn(
         'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sbs-border-soft',
         !isLast && 'border-b border-sbs-border-soft',

@@ -97,3 +97,26 @@ export const SEO_PROFILE: SeoHeadProps = {
   canonical: `${SITE}/profile`,
   noindex: true,
 };
+
+export const SEO_LEGAL: SeoHeadProps = {
+  title: 'Informations légales · SideBySide',
+  description:
+    'Conditions générales, politique de confidentialité et cookies de SideBySide. Plateforme de covoiturage interurbain au Cameroun.',
+  canonical: `${SITE}/legal`,
+  locale: 'fr_CM',
+};
+
+export const SEO_CONTACT: SeoHeadProps = {
+  title: 'Nous contacter · SideBySide',
+  description:
+    "Une question, une suggestion, un problème ? Écris-nous à contact@sidebyside.cm — réponse sous 48h ouvrées.",
+  canonical: `${SITE}/contact`,
+  locale: 'fr_CM',
+};
+
+export const SEO_ADMIN: SeoHeadProps = {
+  title: 'Back-office · SideBySide',
+  description: 'Interface d\'administration SideBySide.',
+  canonical: `${SITE}/admin`,
+  noindex: true,
+};

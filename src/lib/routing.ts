@@ -77,8 +77,14 @@ export function screenToPath(screen: Screen, params: Record<string, string> = {}
       return '/messages';
     case 'profile':
       return '/profile';
+    case 'legal':
+      return '/legal';
+    case 'contact':
+      return '/contact';
     case 'admin':
       return '/admin';
+    case 'wallet':
+      return '/wallet';
 
     default:
       return '/';
