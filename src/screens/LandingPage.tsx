@@ -48,6 +48,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <LandingHeader onNavigate={onNavigate} />
       <Hero onNavigate={onNavigate} navigateGated={navigateGated} />
       <TrustBar />
+      <LifestyleGallery />
       <HowItWorks />
       <RoutesSection onNavigate={onNavigate} />
       <DriverCTA onNavigate={onNavigate} navigateGated={navigateGated} />
@@ -280,10 +281,21 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen, params?: 
           </div>
         </div>
 
-        {/* Colonne visuelle — mockup carte trajet, façon aperçu d'app */}
+        {/* Colonne visuelle — vraie photo + carte trajet flottante, façon aperçu d'app */}
         <div className="relative hidden lg:block">
           <div className="relative mx-auto max-w-sm">
-            <div className="-rotate-3 rounded-card-lg bg-white p-5 text-sbs-dark shadow-2xl transition-transform duration-500 ease-smooth hover:rotate-0">
+            {/* Photo réelle — un peu comme BlaBlaCar : de vrais passagers, pas juste une illustration */}
+            <div className="overflow-hidden rounded-card-lg shadow-2xl">
+              <img
+                src="https://images.unsplash.com/photo-1530065928592-fb0dc85d2f27?auto=format&fit=crop&w=900&q=80"
+                alt="Deux passagères complices à l'arrière d'une voiture pendant un trajet SideBySide"
+                className="aspect-[4/5] w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+
+            {/* Carte trajet flottante */}
+            <div className="absolute -bottom-8 -right-6 w-64 -rotate-3 rounded-card-lg bg-white p-4 text-sbs-dark shadow-2xl transition-transform duration-500 ease-smooth hover:rotate-0">
               <div className="flex items-center justify-between">
                 <Badge tone="yellow">Populaire</Badge>
                 <div className="flex items-center gap-1 text-xs font-bold text-sbs-dark">
@@ -292,25 +304,25 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen, params?: 
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-3">
-                <Avatar name="Achille" size="md" />
+              <div className="mt-3 flex items-center gap-2.5">
+                <Avatar name="Achille" size="sm" />
                 <div>
-                  <div className="text-sm font-bold text-sbs-dark">Achille N.</div>
-                  <div className="text-xs text-sbs-muted">Toyota Corolla · Climatisée</div>
+                  <div className="text-xs font-bold text-sbs-dark">Achille N.</div>
+                  <div className="text-[11px] text-sbs-muted">Toyota Corolla · Climatisée</div>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-sbs-dark">
-                <MapPin className="h-4 w-4 shrink-0 text-sbs-blue" />
+              <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-sbs-dark">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-sbs-blue" />
                 Douala
                 <div className="h-px flex-1 border-t border-dashed border-sbs-border" />
-                <MapPin className="h-4 w-4 shrink-0 text-sbs-yellow-dark" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-sbs-yellow-dark" />
                 Bafoussam
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-sbs-border-soft pt-4">
-                <div className="font-display text-xl font-extrabold text-sbs-dark">3 500 F CFA</div>
-                <div className="text-right text-xs text-sbs-muted">
+              <div className="mt-3 flex items-center justify-between border-t border-sbs-border-soft pt-3">
+                <div className="font-display text-lg font-extrabold text-sbs-dark">3 500 F CFA</div>
+                <div className="text-right text-[11px] text-sbs-muted">
                   Départ 07:30
                   <br />
                   4 h 15 de trajet
@@ -319,7 +331,7 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen, params?: 
             </div>
 
             {/* Badge flottant — preuve sociale */}
-            <div className="absolute -bottom-6 -left-8 rotate-3 rounded-card border border-sbs-border bg-white px-4 py-3 shadow-card">
+            <div className="absolute -left-8 bottom-16 rotate-3 rounded-card border border-sbs-border bg-white px-4 py-3 shadow-card">
               <div className="flex -space-x-2">
                 {['Marlène', 'Joël', 'Émile'].map((n) => (
                   <Avatar key={n} name={n} size="sm" className="ring-2 ring-white" />
@@ -364,6 +376,50 @@ function TrustBar() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------- LIFESTYLE GALLERY ----------------------------- */
+
+/** Bande photo éditoriale, un peu comme BlaBlaCar : de vraies photos plutôt que des icônes. */
+function LifestyleGallery() {
+  return (
+    <section className="bg-white py-16 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+          <div className="order-2 lg:order-1">
+            <Badge tone="blue">La vraie vie sur la route</Badge>
+            <h2 className="mt-3 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Des trajets qui créent des liens
+            </h2>
+            <p className="mt-4 max-w-md text-sbs-muted">
+              Sur SideBySide, chaque trajet est une rencontre. Conducteurs et passagers
+              partagent bien plus qu'une route : ils échangent, rigolent, et arrivent
+              à destination avec le sourire — et quelques francs CFA économisés.
+            </p>
+          </div>
+
+          <div className="order-1 grid grid-cols-2 gap-4 lg:order-2">
+            <div className="overflow-hidden rounded-card-lg shadow-card">
+              <img
+                src="https://images.unsplash.com/photo-1529424601215-d2a3daf193ff?auto=format&fit=crop&w=700&q=80"
+                alt="Deux passagères prêtes à partir, coffre ouvert"
+                className="aspect-[3/4] w-full object-cover transition-transform duration-500 ease-smooth hover:scale-105"
+                loading="lazy"
+              />
+            </div>
+            <div className="mt-8 overflow-hidden rounded-card-lg shadow-card">
+              <img
+                src="https://images.unsplash.com/photo-1748882585283-1b71bbbec96b?auto=format&fit=crop&w=700&q=80"
+                alt="Amis profitant d'une balade en voiture"
+                className="aspect-[3/4] w-full object-cover transition-transform duration-500 ease-smooth hover:scale-105"
+                loading="lazy"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </section>
