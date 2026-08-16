@@ -14,3 +14,13 @@ createRoot(document.getElementById('root')!).render(
     </HelmetProvider>
   </StrictMode>,
 );
+
+// Sur les apps natives (Capacitor iOS/Android), on masque le splash screen
+// une fois React monté. N'a aucun effet sur le web (PWA/navigateur).
+if ('Capacitor' in window) {
+  import('@capacitor/splash-screen')
+    .then(({ SplashScreen }) => SplashScreen.hide())
+    .catch(() => {
+      /* pas de plugin natif dispo (ex: web) — on ignore */
+    });
+}

@@ -287,8 +287,8 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen, params?: 
             {/* Photo réelle — un peu comme BlaBlaCar : de vrais passagers, pas juste une illustration */}
             <div className="overflow-hidden rounded-card-lg shadow-2xl">
               <img
-                src="https://images.unsplash.com/photo-1530065928592-fb0dc85d2f27?auto=format&fit=crop&w=900&q=80"
-                alt="Deux passagères complices à l'arrière d'une voiture pendant un trajet SideBySide"
+                src="https://images.pexels.com/photos/4663028/pexels-photo-4663028.jpeg?auto=compress&cs=tinysrgb&w=900&fit=crop"
+                alt="Deux amis complices qui rient ensemble à bord d'une voiture"
                 className="aspect-[4/5] w-full object-cover"
                 loading="lazy"
               />
@@ -405,16 +405,16 @@ function LifestyleGallery() {
           <div className="order-1 grid grid-cols-2 gap-4 lg:order-2">
             <div className="overflow-hidden rounded-card-lg shadow-card">
               <img
-                src="https://images.unsplash.com/photo-1529424601215-d2a3daf193ff?auto=format&fit=crop&w=700&q=80"
-                alt="Deux passagères prêtes à partir, coffre ouvert"
+                src="https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=700&q=80"
+                alt="Trois amis qui rigolent ensemble"
                 className="aspect-[3/4] w-full object-cover transition-transform duration-500 ease-smooth hover:scale-105"
                 loading="lazy"
               />
             </div>
             <div className="mt-8 overflow-hidden rounded-card-lg shadow-card">
               <img
-                src="https://images.unsplash.com/photo-1748882585283-1b71bbbec96b?auto=format&fit=crop&w=700&q=80"
-                alt="Amis profitant d'une balade en voiture"
+                src="https://images.unsplash.com/photo-1630726410985-a1021e8a232a?auto=format&fit=crop&w=700&q=80"
+                alt="Deux amies complices, prêtes pour la route"
                 className="aspect-[3/4] w-full object-cover transition-transform duration-500 ease-smooth hover:scale-105"
                 loading="lazy"
               />
