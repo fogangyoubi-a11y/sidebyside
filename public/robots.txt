@@ -1,15 +1,15 @@
 User-agent: *
-Allow: /
-Allow: /diaspora
-Allow: /search
-Allow: /trip/
+Allow: /cm
+Allow: /cm/diaspora
+Allow: /cm/search
+Allow: /cm/trip/
 
-Disallow: /onboarding
-Disallow: /login
-Disallow: /booking/
-Disallow: /my-trips
-Disallow: /messages
-Disallow: /profile
-Disallow: /admin
+Disallow: /cm/onboarding
+Disallow: /cm/login
+Disallow: /cm/booking/
+Disallow: /cm/my-trips
+Disallow: /cm/messages
+Disallow: /cm/profile
+Disallow: /cm/admin
 
 Sitemap: https://www.sidebyside.cm/sitemap.xml

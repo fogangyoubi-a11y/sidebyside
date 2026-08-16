@@ -3,20 +3,27 @@
  * et `react-router-dom` v7.
  *
  * Les composants existants continuent d'appeler `onNavigate('booking', { tripId: 't1' })` :
- * `useScreenNavigate()` traduit ça en URL réelle (`/booking/t1`) et appelle `navigate(url)`.
+ * `useScreenNavigate()` traduit ça en URL réelle (`/cm/booking/t1`) et appelle `navigate(url)`.
  *
  * Avantages :
- *  - URLs partageables (`https://sidebyside.cm/trip/cm123`)
+ *  - URLs partageables (`https://sidebyside.cm/cm/trip/cm123`)
  *  - SEO + Open Graph par page (cf. react-helmet-async)
  *  - Back/forward navigateur fonctionnel
  *  - Aucun composant existant n'a besoin d'être modifié
+ *
+ * Multi-pays : `screenToPath` renvoie un chemin relatif (sans préfixe pays,
+ * ex: `/search`) ; `useScreenNavigate` lit le pays courant via `useCountry()`
+ * et préfixe automatiquement (`/cm/search`). Toute la navigation interne de
+ * l'app passe par ce hook unique, donc elle reste dans le bon pays sans
+ * qu'aucun écran n'ait besoin de connaître la notion de pays.
  */
 
 import { useNavigate } from 'react-router-dom';
+import { useCountry } from './country';
 import type { Screen } from './types';
 
 /**
- * Convertit un (Screen, params) en URL réelle.
+ * Convertit un (Screen, params) en chemin relatif (sans préfixe pays).
  * Exposé pour tests + pour construire des liens `<Link to={...}>` au besoin.
  */
 export function screenToPath(screen: Screen, params: Record<string, string> = {}): string {
@@ -92,8 +99,17 @@ export function screenToPath(screen: Screen, params: Record<string, string> = {}
 }
 
 /**
+ * Préfixe un chemin relatif (`/search`) avec le code pays courant (`cm`)
+ * pour obtenir le chemin réel (`/cm/search`).
+ */
+function withCountryPrefix(countryId: string, relativePath: string): string {
+  // relativePath vaut soit "/" soit "/xxx..." — on évite le double slash sur la racine.
+  return relativePath === '/' ? `/${countryId}` : `/${countryId}${relativePath}`;
+}
+
+/**
  * Hook React qui renvoie une fonction `navigate(screen, params)` identique
- * à l'ancienne API, mais qui pousse une vraie URL dans l'historique.
+ * à l'ancienne API, mais qui pousse une vraie URL préfixée pays dans l'historique.
  *
  * Usage dans App.tsx :
  *   const navigate = useScreenNavigate();
@@ -101,8 +117,10 @@ export function screenToPath(screen: Screen, params: Record<string, string> = {}
  */
 export function useScreenNavigate() {
   const nav = useNavigate();
+  const country = useCountry();
   return (screen: Screen, params: Record<string, string> = {}) => {
-    const path = screenToPath(screen, params);
+    const relativePath = screenToPath(screen, params);
+    const path = withCountryPrefix(country.id, relativePath);
     nav(path);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });

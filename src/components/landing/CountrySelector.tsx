@@ -7,7 +7,9 @@
  * pour capturer l'intérêt (email) au lieu de rediriger vers une page morte.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown, Globe } from 'lucide-react';
+import { useCountry } from '@/lib/country';
 
 export interface CountryOption {
   id: string;
@@ -35,7 +37,8 @@ interface CountrySelectorProps {
 
 export function CountrySelector({ onSelectUnavailable, className }: CountrySelectorProps) {
   const [open, setOpen] = useState(false);
-  const [current] = useState<CountryOption>(COUNTRIES[0]);
+  const current = useCountry();
+  const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Ferme le menu si on clique en dehors, ou avec Escape.
@@ -61,8 +64,12 @@ export function CountrySelector({ onSelectUnavailable, className }: CountrySelec
     setOpen(false);
     if (!country.available) {
       onSelectUnavailable(country);
+      return;
     }
-    // Le Cameroun étant déjà le pays courant, le sélectionner ne fait rien de plus.
+    if (country.id !== current.id) {
+      // Bascule vers un autre pays déjà actif — prêt pour le jour où il y en aura plusieurs.
+      navigate(`/${country.id}`);
+    }
   }
 
   return (

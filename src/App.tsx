@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, useParams, useSearchParams } from 'react-router-dom';
+import { Routes, Route, useParams, useSearchParams, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { LandingPage } from '@/screens/LandingPage';
 import { SearchTrips } from '@/screens/SearchTrips';
 import { Onboarding } from '@/screens/Onboarding';
@@ -17,6 +17,8 @@ import { Contact } from '@/screens/Contact';
 import { Admin } from '@/screens/Admin';
 import { SeoHead } from '@/components/seo/SeoHead';
 import { useScreenNavigate } from '@/lib/routing';
+import { CountryProvider, DEFAULT_COUNTRY_ID } from '@/lib/country';
+import { COUNTRIES } from '@/components/landing/CountrySelector';
 
 // Code splitting : la landing diaspora n'est telechargee que si on visite /diaspora.
 // Permet de ne pas alourdir le bundle des utilisateurs qui restent dans l'app.
@@ -241,28 +243,68 @@ function NotFoundRoute() {
 }
 
 /* ============================================================
+   CountryLayout — porte d'entrée multi-pays
+   ============================================================
+   Toutes les routes de l'app vivent sous /:country (ex: /cm/search).
+   Ce layout, exécuté avant tout enfant, tranche 3 cas :
+   1. Segment inconnu (ex: /search, ancien lien sans préfixe pays)
+      → on le traite comme un chemin Cameroun et on redirige vers /cm/search.
+   2. Code pays connu mais pas encore actif (ex: /sn/...)
+      → on retombe sur l'équivalent Cameroun (garde le reste du chemin).
+   3. Code pays connu et actif
+      → on expose le pays via CountryProvider et on rend les routes enfants.
+
+   Ainsi, activer un nouveau pays (COUNTRIES[x].available = true) suffit à
+   le rendre navigable : aucune route à dupliquer, aucun lien à changer.
+*/
+function CountryLayout() {
+  const { country: countryId } = useParams<{ country: string }>();
+  const location = useLocation();
+  const match = COUNTRIES.find((c) => c.id === countryId);
+
+  if (!match || !match.available) {
+    const prefixLength = `/${countryId ?? ''}`.length;
+    const rest = match ? location.pathname.slice(prefixLength) : location.pathname;
+    const target = `/${DEFAULT_COUNTRY_ID}${rest}${location.search}`;
+    return <Navigate to={target} replace />;
+  }
+
+  return (
+    <CountryProvider country={match}>
+      <Outlet />
+    </CountryProvider>
+  );
+}
+
+/* ============================================================
    App — déclaration des routes
    ============================================================ */
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingRoute />} />
-      <Route path="/diaspora" element={<DiasporaRoute />} />
-      <Route path="/onboarding" element={<OnboardingRoute />} />
-      <Route path="/login" element={<LoginRoute />} />
-      <Route path="/search" element={<SearchRoute />} />
-      <Route path="/trip/:tripId" element={<TripDetailRoute />} />
-      <Route path="/booking/:tripId" element={<BookingRoute />} />
-      <Route path="/publish" element={<PublishRoute />} />
-      <Route path="/wallet" element={<WalletRoute />} />
-      <Route path="/legal" element={<LegalRoute />} />
-      <Route path="/contact" element={<ContactRoute />} />
-      <Route path="/admin" element={<AdminRoute />} />
-      <Route path="/my-trips" element={<MyTripsRoute />} />
-      <Route path="/messages" element={<MessagesRoute />} />
-      <Route path="/profile" element={<ProfileRoute />} />
-      <Route path="*" element={<NotFoundRoute />} />
+      <Route path="/" element={<Navigate to={`/${DEFAULT_COUNTRY_ID}`} replace />} />
+      <Route path="/:country" element={<CountryLayout />}>
+        <Route index element={<LandingRoute />} />
+        <Route path="diaspora" element={<DiasporaRoute />} />
+        <Route path="onboarding" element={<OnboardingRoute />} />
+        <Route path="login" element={<LoginRoute />} />
+        <Route path="search" element={<SearchRoute />} />
+        <Route path="trip/:tripId" element={<TripDetailRoute />} />
+        <Route path="booking/:tripId" element={<BookingRoute />} />
+        <Route path="publish" element={<PublishRoute />} />
+        <Route path="wallet" element={<WalletRoute />} />
+        <Route path="legal" element={<LegalRoute />} />
+        <Route path="contact" element={<ContactRoute />} />
+        <Route path="admin" element={<AdminRoute />} />
+        <Route path="my-trips" element={<MyTripsRoute />} />
+        <Route path="messages" element={<MessagesRoute />} />
+        <Route path="profile" element={<ProfileRoute />} />
+        <Route path="*" element={<NotFoundRoute />} />
+      </Route>
+      {/* Tout le reste (chemin sans préfixe pays valide) passe par CountryLayout
+          via le param :country, qui gère la redirection legacy → /cm/... */}
+      <Route path="*" element={<CountryLayout />} />
     </Routes>
   );
 }
