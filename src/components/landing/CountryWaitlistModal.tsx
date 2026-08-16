@@ -12,7 +12,7 @@ import { X, Loader2, Mail, CheckCircle2, AlertCircle, Globe, ArrowRight } from '
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ApiClient, ApiError } from '@/lib/api';
-import type { CountryOption } from './CountrySelector';
+import { FlagIcon, type CountryOption } from './CountrySelector';
 
 interface CountryWaitlistModalProps {
   isOpen: boolean;
@@ -96,8 +96,8 @@ export function CountryWaitlistModal({ isOpen, onClose, country }: CountryWaitli
             <div className="inline-flex items-center gap-1.5 rounded-pill bg-sbs-yellow-light px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-sbs-yellow-dark">
               <Globe className="h-3 w-3" /> Pays à venir
             </div>
-            <h2 id="country-waitlist-title" className="mt-2 font-display text-xl font-extrabold text-sbs-dark">
-              <span aria-hidden className="mr-1.5">{country.flag}</span>
+            <h2 id="country-waitlist-title" className="mt-2 flex items-center gap-2 font-display text-xl font-extrabold text-sbs-dark">
+              <FlagIcon countryId={country.id} size="md" />
               {country.name}
             </h2>
           </div>

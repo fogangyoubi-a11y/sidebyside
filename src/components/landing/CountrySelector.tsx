@@ -5,6 +5,11 @@
  * pays affichés servent à montrer l'ambition d'expansion régionale : ils
  * sont marqués "Bientôt disponible" et ouvrent la CountryWaitlistModal
  * pour capturer l'intérêt (email) au lieu de rediriger vers une page morte.
+ *
+ * Drapeaux : icônes SVG circulaires (mêmes que celles utilisées par BlaBlaCar),
+ * via la librairie open source "circle-flags" (MIT), chargées depuis le CDN
+ * jsDelivr par code ISO 3166-1 alpha-2 — qui est justement notre `country.id`.
+ * Pas d'emoji : les émojis drapeaux ne s'affichent pas correctement sur Windows.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,25 +19,45 @@ import { useCountry } from '@/lib/country';
 export interface CountryOption {
   id: string;
   name: string;
-  flag: string;
   available: boolean;
 }
 
+/** URL d'une icône de drapeau circulaire (SVG) pour un code pays ISO donné. */
+export function flagUrl(countryId: string): string {
+  return `https://cdn.jsdelivr.net/gh/hatscripts/circle-flags@gh-pages/flags/${countryId}.svg`;
+}
+
 export const COUNTRIES: CountryOption[] = [
-  { id: 'cm', name: 'Cameroun', flag: '🇨🇲', available: true },
-  { id: 'sn', name: 'Sénégal', flag: '🇸🇳', available: false },
-  { id: 'ci', name: "Côte d'Ivoire", flag: '🇨🇮', available: false },
-  { id: 'ga', name: 'Gabon', flag: '🇬🇦', available: false },
-  { id: 'cd', name: 'RD Congo', flag: '🇨🇩', available: false },
-  { id: 'ml', name: 'Mali', flag: '🇲🇱', available: false },
-  { id: 'bj', name: 'Bénin', flag: '🇧🇯', available: false },
-  { id: 'tg', name: 'Togo', flag: '🇹🇬', available: false },
+  { id: 'cm', name: 'Cameroun', available: true },
+  { id: 'sn', name: 'Sénégal', available: false },
+  { id: 'ci', name: "Côte d'Ivoire", available: false },
+  { id: 'ga', name: 'Gabon', available: false },
+  { id: 'cd', name: 'RD Congo', available: false },
+  { id: 'ml', name: 'Mali', available: false },
+  { id: 'bj', name: 'Bénin', available: false },
+  { id: 'tg', name: 'Togo', available: false },
 ];
 
 interface CountrySelectorProps {
   /** Appelé quand on clique sur un pays pas encore disponible. */
   onSelectUnavailable: (country: CountryOption) => void;
   className?: string;
+}
+
+/** Petit drapeau circulaire, avec repli discret si le SVG ne charge pas. */
+export function FlagIcon({ countryId, size = 'sm' }: { countryId: string; size?: 'sm' | 'md' }) {
+  return (
+    <img
+      src={flagUrl(countryId)}
+      alt=""
+      aria-hidden
+      loading="lazy"
+      className={`inline-block shrink-0 rounded-full object-cover ${size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'}`}
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+      }}
+    />
+  );
 }
 
 export function CountrySelector({ onSelectUnavailable, className }: CountrySelectorProps) {
@@ -81,7 +106,7 @@ export function CountrySelector({ onSelectUnavailable, className }: CountrySelec
         aria-expanded={open}
         className="inline-flex items-center gap-1.5 rounded-pill border border-sbs-border px-3 py-2 text-sm font-semibold text-sbs-dark transition-colors hover:bg-sbs-border-soft"
       >
-        <span aria-hidden>{current.flag}</span>
+        <FlagIcon countryId={current.id} size="sm" />
         <span className="hidden sm:inline">{current.name}</span>
         <ChevronDown className={`h-3.5 w-3.5 text-sbs-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -106,7 +131,7 @@ export function CountrySelector({ onSelectUnavailable, className }: CountrySelec
               className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-sbs-border-soft"
             >
               <span className="flex items-center gap-2">
-                <span aria-hidden>{country.flag}</span>
+                <FlagIcon countryId={country.id} size="md" />
                 <span className={country.available ? 'font-semibold text-sbs-dark' : 'text-sbs-muted'}>
                   {country.name}
                 </span>
