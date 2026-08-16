@@ -244,6 +244,10 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
   const [apiError, setApiError] = useState<string | null>(null);
   // Pendant un appel API (loading sur le bouton "Suivant").
   const [submitting, setSubmitting] = useState(false);
+  // true si register() a réussi mais l'envoi des documents KYC a échoué
+  // (réseau coupé, fichier trop lourd...) — le compte existe, mais on doit
+  // prévenir l'utilisateur qu'il devra renvoyer ses documents.
+  const [kycUploadFailed, setKycUploadFailed] = useState(false);
 
   const { register } = useAuth();
 
@@ -313,6 +317,30 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
         password: form.password,
         role: form.role === 'driver' ? 'DRIVER' : 'PASSENGER',
       });
+
+      // Compte créé + session posée par register() → on peut maintenant
+      // envoyer les documents KYC (upload authentifié). Un échec ici ne doit
+      // pas bloquer l'utilisateur : le compte existe déjà, on le prévient
+      // juste que ses documents devront être renvoyés depuis son profil.
+      try {
+        await ApiClient.uploadKycDocuments({
+          CNI_FRONT: form.cniFront,
+          CNI_BACK: form.cniBack,
+          SELFIE: form.selfie,
+          ...(form.role === 'driver'
+            ? {
+                LICENSE: form.license,
+                VEHICLE_REGISTRATION: form.vehicleRegistration,
+                VEHICLE_PHOTO: form.vehiclePhoto,
+              }
+            : {}),
+        });
+      } catch {
+        // Compte créé mais envoi des documents échoué (réseau, taille...) —
+        // on continue vers 'done' quand même, sans faire perdre le compte.
+        setKycUploadFailed(true);
+      }
+
       setStep('done');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -414,7 +442,7 @@ export function Onboarding({ onNavigate }: OnboardingProps) {
             />
           )}
           {step === 'done' && (
-            <DoneStep form={form} onNavigate={onNavigate} />
+            <DoneStep form={form} onNavigate={onNavigate} kycUploadFailed={kycUploadFailed} />
           )}
         </div>
 
@@ -967,7 +995,7 @@ function KycDriverStep({ form, onUpdate, onBack, onNext, submitting, apiError }:
 
 /* ----------------------------- 9. DONE ----------------------------- */
 
-function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Screen, params?: Record<string, string>) => void }) {
+function DoneStep({ form, onNavigate, kycUploadFailed }: { form: FormState; onNavigate: (s: Screen, params?: Record<string, string>) => void; kycUploadFailed?: boolean }) {
   // À ce stade, identityVerified est en cours — donc niveau Basic, avec annonce "Vérifié sous 24h"
   const initialLevel: TrustLevel = 'basic';
 
@@ -991,9 +1019,15 @@ function DoneStep({ form, onNavigate }: { form: FormState; onNavigate: (s: Scree
         <h2 className="font-display text-2xl font-extrabold text-sbs-dark">
           Bienvenue {form.firstName || 'à bord'} ! 🎉
         </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
-          Votre compte est créé. Vos documents sont en cours de vérification — vous recevrez une notification sous 24h.
-        </p>
+        {kycUploadFailed ? (
+          <p className="mx-auto mt-2 max-w-md text-sm font-medium text-sbs-red">
+            Votre compte est créé, mais l'envoi de vos documents a échoué (connexion instable). Rendez-vous dans votre profil pour les renvoyer.
+          </p>
+        ) : (
+          <p className="mx-auto mt-2 max-w-md text-sm text-sbs-muted">
+            Votre compte est créé. Vos documents sont en cours de vérification — vous recevrez une notification sous 24h.
+          </p>
+        )}
 
         {/* Carte de niveau de confiance */}
         <div className="mx-auto mt-6 max-w-md rounded-card-lg border border-sbs-border bg-sbs-cream p-4 text-left">

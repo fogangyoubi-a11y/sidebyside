@@ -95,7 +95,7 @@ export class ApiError extends Error {
 /* ---------------- Cœur fetch ---------------- */
 
 interface ApiOptions extends Omit<RequestInit, 'body'> {
-  body?: unknown;        // sera JSON.stringify
+  body?: unknown;        // sera JSON.stringify (sauf si déjà un FormData)
   query?: Record<string, string | number | boolean | undefined>;
   /** Désactive l'envoi du token (utile pour login). */
   noAuth?: boolean;
@@ -113,8 +113,12 @@ export async function api<T = unknown>(
     }
   }
 
+  const isFormData = typeof FormData !== 'undefined' && opts.body instanceof FormData;
+
   const headers = new Headers(opts.headers as HeadersInit | undefined);
-  if (!headers.has('Content-Type') && opts.body !== undefined) {
+  if (!headers.has('Content-Type') && opts.body !== undefined && !isFormData) {
+    // Pour FormData, on laisse le navigateur poser le Content-Type
+    // (multipart/form-data; boundary=...) — le fixer manuellement casse l'upload.
     headers.set('Content-Type', 'application/json');
   }
   if (!opts.noAuth) {
@@ -125,7 +129,9 @@ export async function api<T = unknown>(
   const res = await fetch(url.toString(), {
     method: opts.method ?? (opts.body !== undefined ? 'POST' : 'GET'),
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.body !== undefined
+      ? (isFormData ? (opts.body as FormData) : JSON.stringify(opts.body))
+      : undefined,
     signal: opts.signal,
   });
 
@@ -272,6 +278,27 @@ export const ApiClient = {
 
   me: () => api<{ user: ApiUser }>('/me'),
 
+  /**
+   * Envoie les documents KYC (CNI, selfie, permis, carte grise, photo véhicule)
+   * au backend. Auth requise (le token doit déjà être posé, donc appeler
+   * après register()/login()). Un champ FormData par document présent.
+   */
+  uploadKycDocuments: (files: Partial<Record<
+    'CNI_FRONT' | 'CNI_BACK' | 'SELFIE' | 'LICENSE' | 'VEHICLE_REGISTRATION' | 'VEHICLE_PHOTO',
+    File | null
+  >>) => {
+    const formData = new FormData();
+    for (const [key, file] of Object.entries(files)) {
+      if (file) formData.append(key, file);
+    }
+    return api<{ documents: Array<{ type: string; status: string }> }>(
+      '/kyc/upload', { body: formData, method: 'POST' },
+    );
+  },
+
+  kycStatus: () =>
+    api<{ documents: Array<{ type: string; status: string; rejectionReason: string | null; createdAt: string; reviewedAt: string | null }> }>('/kyc/status'),
+
   /** Profil complet (stats + statuts KYC). Endpoint identique à `me()` mais typage enrichi. */
   meFull: () => api<{ user: ApiUserFull }>('/me'),
 
@@ -402,6 +429,33 @@ export const ApiClient = {
       '/admin/newsletter',
       { query: { page: 1, limit: 50 } },
     ),
+
+  /* ---- Admin : revue KYC ---- */
+
+  adminKycPending: () =>
+    api<{ documents: ApiAdminKycDocument[] }>('/admin/kyc/pending'),
+
+  /**
+   * Récupère l'image d'un document KYC (protégée par token admin) et retourne
+   * une object URL utilisable directement dans un <img src>.
+   * Penser à révoquer l'URL (URL.revokeObjectURL) au démontage du composant.
+   */
+  adminKycDocumentImageUrl: async (docId: string): Promise<string> => {
+    const url = new URL(BASE + `/admin/kyc/documents/${docId}/file`, window.location.origin);
+    const token = getAccessToken();
+    const res = await fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) throw new ApiError(res.status, 'FILE_FETCH_ERROR', 'Impossible de charger le document');
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
+  adminReviewKycDocument: (docId: string, action: 'APPROVE' | 'REJECT', reason?: string) =>
+    api<{ document: { id: string; type: string; status: string }; user: { id: string; identityVerified: boolean; selfieMatched: boolean; licenseVerified: boolean; trustLevel: string } }>(
+      `/admin/kyc/documents/${docId}/review`,
+      { body: { action, reason } },
+    ),
 };
 
 /* ---- Admin types ---- */
@@ -446,6 +500,15 @@ export interface ApiAdminBooking {
   createdAt: string;
   trip: { fromCity: string; toCity: string; departureAt: string };
   passenger: { id: string; firstName: string; lastName: string; phone: string };
+}
+
+export interface ApiAdminKycDocument {
+  id: string;
+  type: 'CNI_FRONT' | 'CNI_BACK' | 'SELFIE' | 'LICENSE' | 'VEHICLE_REGISTRATION' | 'VEHICLE_PHOTO';
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  user: { id: string; firstName: string; lastName: string; phone: string; role: string };
 }
 
 export interface ApiAdminNewsletter {

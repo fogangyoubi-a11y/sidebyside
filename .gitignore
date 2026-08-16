@@ -30,3 +30,9 @@ dist-ssr
 preview/cloudflared.exe
 preview/qr.png
 preview/qr.svg
+
+# Données testeurs diaspora (prénoms/infos perso — ne pas exposer publiquement)
+diaspora-test-utilisateurs.csv
+
+# Backend = repo Git séparé (sidebyside-api), pas versionné ici
+backend/

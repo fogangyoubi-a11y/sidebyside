@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Loader2, Users, Car, Ticket, Wallet, Coins, Mail,
-  AlertTriangle, ShieldCheck, RefreshCw,
+  AlertTriangle, ShieldCheck, RefreshCw, Eye, X, Check, Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -28,6 +28,7 @@ import {
   type ApiAdminUser,
   type ApiAdminBooking,
   type ApiAdminNewsletter,
+  type ApiAdminKycDocument,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
@@ -78,29 +79,39 @@ function AdminDashboard({ onNavigate }: AdminProps) {
   const [users, setUsers] = useState<ApiAdminUser[]>([]);
   const [bookings, setBookings] = useState<ApiAdminBooking[]>([]);
   const [newsletter, setNewsletter] = useState<ApiAdminNewsletter[]>([]);
+  const [kycDocs, setKycDocs] = useState<ApiAdminKycDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [reviewingDoc, setReviewingDoc] = useState<ApiAdminKycDocument | null>(null);
 
   async function loadAll() {
     setError(null);
     try {
-      const [s, u, b, n] = await Promise.all([
+      const [s, u, b, n, k] = await Promise.all([
         ApiClient.adminDashboard(),
         ApiClient.adminRecentUsers(),
         ApiClient.adminRecentBookings(),
         ApiClient.adminNewsletter(),
+        ApiClient.adminKycPending(),
       ]);
       setStats(s);
       setUsers(u.users);
       setBookings(b.bookings);
       setNewsletter(n.subscribers);
+      setKycDocs(k.documents);
     } catch (err) {
       const msg = err instanceof ApiError
         ? `Erreur ${err.status} : ${err.message}`
         : 'Impossible de charger les données du back-office.';
       setError(msg);
     }
+  }
+
+  /** Après une revue (approve/reject), on retire le doc de la liste locale sans tout recharger. */
+  function handleReviewed(docId: string) {
+    setKycDocs((prev) => prev.filter((d) => d.id !== docId));
+    setReviewingDoc(null);
   }
 
   useEffect(() => {
@@ -228,8 +239,8 @@ function AdminDashboard({ onNavigate }: AdminProps) {
               <div className="flex items-center gap-3 rounded-card border border-sbs-yellow/40 bg-sbs-yellow-light p-4">
                 <ShieldCheck className="h-5 w-5 text-sbs-yellow-dark" />
                 <div className="text-sm">
-                  <div className="font-bold text-sbs-dark">{stats.pendingKyc} document(s) KYC en attente</div>
-                  <div className="text-xs text-sbs-muted">À valider depuis l'interface KYC (à venir).</div>
+                  <div className="font-bold text-sbs-dark">{stats.pendingKyc} chauffeur(s) avec KYC en attente</div>
+                  <div className="text-xs text-sbs-muted">{kycDocs.length} document(s) à valider ci-dessous.</div>
                 </div>
               </div>
             )}
@@ -244,6 +255,30 @@ function AdminDashboard({ onNavigate }: AdminProps) {
             )}
           </section>
         )}
+
+        {/* ---------- Tableau KYC en attente ---------- */}
+        <Section title="Documents KYC en attente de revue" count={kycDocs.length}>
+          {kycDocs.length === 0 ? (
+            <Empty text="Aucun document en attente — tout est à jour." />
+          ) : (
+            <Table headers={['Utilisateur', 'Téléphone', 'Rôle', 'Document', 'Reçu le', '']}>
+              {kycDocs.map((d) => (
+                <tr key={d.id} className="border-b border-sbs-border-soft last:border-b-0">
+                  <td className="px-3 py-2 text-sm font-semibold text-sbs-dark">{d.user.firstName} {d.user.lastName}</td>
+                  <td className="px-3 py-2 text-sm text-sbs-muted">{d.user.phone}</td>
+                  <td className="px-3 py-2"><RoleBadge role={d.user.role as 'PASSENGER' | 'DRIVER' | 'ADMIN'} /></td>
+                  <td className="px-3 py-2"><KycTypeBadge type={d.type} /></td>
+                  <td className="px-3 py-2 text-xs text-sbs-muted">{formatDate(d.createdAt)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Button variant="secondary" size="sm" onClick={() => setReviewingDoc(d)}>
+                      <Eye className="h-3.5 w-3.5" /> Voir
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </Section>
 
         {/* ---------- Tableau Users ---------- */}
         <Section title="20 derniers utilisateurs inscrits" count={users.length}>
@@ -320,6 +355,14 @@ function AdminDashboard({ onNavigate }: AdminProps) {
           )}
         </Section>
       </main>
+
+      {reviewingDoc && (
+        <KycReviewModal
+          doc={reviewingDoc}
+          onClose={() => setReviewingDoc(null)}
+          onReviewed={handleReviewed}
+        />
+      )}
     </div>
   );
 }
@@ -417,6 +460,127 @@ function BookingStatusBadge({ status }: { status: 'PENDING' | 'CONFIRMED' | 'CAN
     COMPLETED: { tone: 'green', label: 'Terminé' },
   };
   return <Badge tone={map[status].tone}>{map[status].label}</Badge>;
+}
+
+function KycTypeBadge({ type }: { type: ApiAdminKycDocument['type'] }) {
+  const map: Record<ApiAdminKycDocument['type'], string> = {
+    CNI_FRONT: 'CNI (recto)',
+    CNI_BACK: 'CNI (verso)',
+    SELFIE: 'Selfie',
+    LICENSE: 'Permis',
+    VEHICLE_REGISTRATION: 'Carte grise',
+    VEHICLE_PHOTO: 'Photo véhicule',
+  };
+  return <Badge tone="blue">{map[type]}</Badge>;
+}
+
+/* ============================================================
+   Modal de revue KYC — affiche le document, permet d'approuver
+   ou de rejeter (avec motif).
+   ============================================================ */
+
+function KycReviewModal({
+  doc, onClose, onReviewed,
+}: {
+  doc: ApiAdminKycDocument;
+  onClose: () => void;
+  onReviewed: (docId: string) => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+  const [submitting, setSubmitting] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    ApiClient.adminKycDocumentImageUrl(doc.id)
+      .then((url) => {
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        objectUrl = url;
+        setImageUrl(url);
+      })
+      .catch(() => { if (!cancelled) setImageError(true); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [doc.id]);
+
+  async function submit(action: 'APPROVE' | 'REJECT') {
+    setError(null);
+    setSubmitting(action);
+    try {
+      await ApiClient.adminReviewKycDocument(doc.id, action, action === 'REJECT' ? reason.trim() || undefined : undefined);
+      onReviewed(doc.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur lors de la revue du document.');
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-card-lg border border-sbs-border bg-white p-5 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-bold text-sbs-dark">{doc.user.firstName} {doc.user.lastName} · {doc.user.phone}</div>
+            <div className="mt-1"><KycTypeBadge type={doc.type} /></div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fermer" className="rounded-full p-1.5 text-sbs-muted hover:bg-sbs-border-soft">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid min-h-[240px] place-items-center overflow-hidden rounded-card border border-sbs-border bg-sbs-cream">
+          {imageError && <span className="p-6 text-center text-sm text-sbs-red">Impossible de charger le document.</span>}
+          {!imageError && !imageUrl && <Loader2 className="h-6 w-6 animate-spin text-sbs-muted" />}
+          {imageUrl && <img src={imageUrl} alt={doc.type} className="max-h-[420px] w-full object-contain" />}
+        </div>
+
+        {showRejectReason && (
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Motif du rejet (optionnel)"
+            className="mt-3 w-full rounded-card border border-sbs-border px-3 py-2 text-sm focus:border-sbs-blue focus:outline-none"
+          />
+        )}
+
+        {error && <div className="mt-3 text-xs font-medium text-sbs-red">{error}</div>}
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="primary"
+            size="md"
+            className="flex-1"
+            disabled={submitting !== null}
+            onClick={() => submit('APPROVE')}
+          >
+            {submitting === 'APPROVE' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Approuver
+          </Button>
+          <Button
+            variant="danger"
+            size="md"
+            className="flex-1"
+            disabled={submitting !== null}
+            onClick={() => (showRejectReason ? submit('REJECT') : setShowRejectReason(true))}
+          >
+            {submitting === 'REJECT' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+            {showRejectReason ? 'Confirmer le rejet' : 'Rejeter'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function NewsletterStatusBadge({ status }: { status: 'PENDING' | 'SUBSCRIBED' | 'UNSUBSCRIBED' | 'CLEANED' }) {
