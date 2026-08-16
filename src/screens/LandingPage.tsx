@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Shield, Wallet, MessageCircle, Star, ArrowRight, Smartphone, Users, Search, Car, Bell } from 'lucide-react';
+import { MapPin, Shield, Wallet, MessageCircle, Star, ArrowRight, ArrowLeftRight, ChevronDown, Smartphone, Users, Search, Car, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
@@ -9,6 +9,7 @@ import { NotifyMeModal } from '@/components/landing/NotifyMeModal';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { TRIPS } from '@/data/trips';
+import { CITIES } from '@/data/cities';
 import { cn, formatDuration } from '@/lib/utils';
 import type { Screen } from '@/lib/types';
 
@@ -151,7 +152,20 @@ function NavItem({ label, target }: { label: string; target: string }) {
 
 /* ----------------------------- HERO ----------------------------- */
 
-function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; navigateGated: NavigateGated }) {
+function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen, params?: Record<string, string>) => void; navigateGated: NavigateGated }) {
+  const [heroFrom, setHeroFrom] = useState('douala');
+  const [heroTo, setHeroTo] = useState('bafoussam');
+
+  function swapHeroCities() {
+    setHeroFrom(heroTo);
+    setHeroTo(heroFrom);
+  }
+
+  function submitHeroSearch(e: React.FormEvent) {
+    e.preventDefault();
+    onNavigate('search', { from: heroFrom, to: heroTo });
+  }
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-sbs-blue via-sbs-blue-dark to-sbs-dark text-white">
       {/* Pattern décoratif */}
@@ -160,9 +174,9 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
         <div className="absolute -bottom-20 -left-20 h-96 w-96 rounded-full bg-sbs-blue blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex max-w-3xl flex-col items-center gap-10 px-4 py-12 text-center sm:px-6 sm:py-20 lg:py-28">
-        {/* Texte */}
-        <div className="max-w-xl">
+      <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-12 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr,0.95fr] lg:items-center lg:gap-16 lg:py-24">
+        {/* Colonne texte + recherche */}
+        <div className="mx-auto max-w-xl text-center lg:mx-0 lg:max-w-none lg:text-left">
           <div className="mb-5 inline-flex items-center gap-2 rounded-pill bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
             <span className="h-2 w-2 animate-pulse rounded-full bg-sbs-yellow" />
             Disponible sur l'axe Douala – Bafoussam
@@ -174,30 +188,74 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
             partagez la route.
           </h1>
 
-          <p className="mt-5 max-w-md text-lg leading-relaxed text-white/80">
+          <p className="mt-5 max-w-md text-lg leading-relaxed text-white/80 lg:mx-0">
             La première plateforme de covoiturage interurbain au Cameroun.
             Trouvez un trajet, ou rentabilisez le vôtre — en toute confiance.
           </p>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button
-              variant="accent"
-              size="lg"
-              onClick={() => onNavigate('search')}
-              className="rounded-pill"
-            >
+          {/* Widget de recherche — From / To + bouton, comme sur les grandes plateformes de covoiturage */}
+          <form
+            onSubmit={submitHeroSearch}
+            className="mt-7 rounded-card-lg bg-white p-3 text-left shadow-2xl sm:p-4"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <label className="sr-only" htmlFor="hero-from">Ville de départ</label>
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sbs-blue" />
+                <select
+                  id="hero-from"
+                  value={heroFrom}
+                  onChange={(e) => setHeroFrom(e.target.value)}
+                  className="h-12 w-full appearance-none rounded-btn border border-sbs-border bg-sbs-cream pl-9 pr-8 text-sm font-semibold text-sbs-dark transition-colors focus:border-sbs-blue focus:outline-none focus:ring-2 focus:ring-sbs-blue/20"
+                >
+                  {CITIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sbs-muted" />
+              </div>
+
+              <button
+                type="button"
+                onClick={swapHeroCities}
+                aria-label="Inverser les villes de départ et d'arrivée"
+                className="mx-auto grid h-9 w-9 shrink-0 place-items-center rounded-pill border border-sbs-border bg-white text-sbs-blue transition-transform duration-300 ease-smooth hover:rotate-180 hover:border-sbs-blue sm:mx-0"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </button>
+
+              <div className="relative flex-1">
+                <label className="sr-only" htmlFor="hero-to">Ville d'arrivée</label>
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sbs-yellow-dark" />
+                <select
+                  id="hero-to"
+                  value={heroTo}
+                  onChange={(e) => setHeroTo(e.target.value)}
+                  className="h-12 w-full appearance-none rounded-btn border border-sbs-border bg-sbs-cream pl-9 pr-8 text-sm font-semibold text-sbs-dark transition-colors focus:border-sbs-blue focus:outline-none focus:ring-2 focus:ring-sbs-blue/20"
+                >
+                  {CITIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sbs-muted" />
+              </div>
+            </div>
+
+            <Button type="submit" variant="accent" size="lg" className="mt-3 w-full rounded-btn">
               <Search className="h-5 w-5" />
               Chercher un trajet
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
+          </form>
+
+          <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+            <button
+              type="button"
               onClick={() => navigateGated('publish-trip', 'publier un trajet en tant que chauffeur')}
-              className="rounded-pill"
+              className="inline-flex items-center gap-2 rounded-pill border border-white/30 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-white/10"
             >
-              <Car className="h-5 w-5" />
-              Publier un trajet
-            </Button>
+              <Car className="h-4 w-4" />
+              Publier un trajet en tant que chauffeur
+            </button>
           </div>
 
           <button
@@ -210,7 +268,7 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </button>
 
-          <div className="mt-8 flex items-center gap-4 text-sm text-white/70">
+          <div className="mt-8 flex items-center justify-center gap-4 text-sm text-white/70 lg:justify-start">
             <div className="flex -space-x-2">
               {['Achille', 'Marlène', 'Joël', 'Émile'].map((n) => (
                 <Avatar key={n} name={n} size="sm" className="ring-2 ring-sbs-blue-dark" />
@@ -219,6 +277,62 @@ function Hero({ onNavigate, navigateGated }: { onNavigate: (s: Screen) => void; 
             <span>
               <span className="font-bold text-white">+500</span> Camerounais voyagent déjà avec nous
             </span>
+          </div>
+        </div>
+
+        {/* Colonne visuelle — mockup carte trajet, façon aperçu d'app */}
+        <div className="relative hidden lg:block">
+          <div className="relative mx-auto max-w-sm">
+            <div className="-rotate-3 rounded-card-lg bg-white p-5 text-sbs-dark shadow-2xl transition-transform duration-500 ease-smooth hover:rotate-0">
+              <div className="flex items-center justify-between">
+                <Badge tone="yellow">Populaire</Badge>
+                <div className="flex items-center gap-1 text-xs font-bold text-sbs-dark">
+                  <Star className="h-3.5 w-3.5 fill-sbs-yellow text-sbs-yellow" />
+                  4.9
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <Avatar name="Achille" size="md" />
+                <div>
+                  <div className="text-sm font-bold text-sbs-dark">Achille N.</div>
+                  <div className="text-xs text-sbs-muted">Toyota Corolla · Climatisée</div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-sbs-dark">
+                <MapPin className="h-4 w-4 shrink-0 text-sbs-blue" />
+                Douala
+                <div className="h-px flex-1 border-t border-dashed border-sbs-border" />
+                <MapPin className="h-4 w-4 shrink-0 text-sbs-yellow-dark" />
+                Bafoussam
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-sbs-border-soft pt-4">
+                <div className="font-display text-xl font-extrabold text-sbs-dark">3 500 F CFA</div>
+                <div className="text-right text-xs text-sbs-muted">
+                  Départ 07:30
+                  <br />
+                  4 h 15 de trajet
+                </div>
+              </div>
+            </div>
+
+            {/* Badge flottant — preuve sociale */}
+            <div className="absolute -bottom-6 -left-8 rotate-3 rounded-card border border-sbs-border bg-white px-4 py-3 shadow-card">
+              <div className="flex -space-x-2">
+                {['Marlène', 'Joël', 'Émile'].map((n) => (
+                  <Avatar key={n} name={n} size="sm" className="ring-2 ring-white" />
+                ))}
+              </div>
+              <div className="mt-1 text-xs font-bold text-sbs-dark">+500 voyageurs</div>
+            </div>
+
+            {/* Badge flottant — confiance */}
+            <div className="absolute -right-4 -top-4 flex items-center gap-1.5 rounded-pill bg-sbs-green px-3 py-2 text-xs font-bold text-white shadow-card">
+              <Shield className="h-3.5 w-3.5" />
+              Profil vérifié
+            </div>
           </div>
         </div>
       </div>
