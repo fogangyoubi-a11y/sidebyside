@@ -27,15 +27,19 @@ export function flagUrl(countryId: string): string {
   return `https://cdn.jsdelivr.net/gh/hatscripts/circle-flags@gh-pages/flags/${countryId}.svg`;
 }
 
+// Afrique centrale = région "Middle Africa" au sens ONU (CEEAC) : Cameroun,
+// Angola, Congo-Brazzaville, Gabon, Guinée équatoriale, RD Congo,
+// République centrafricaine, São Tomé-et-Príncipe, Tchad.
 export const COUNTRIES: CountryOption[] = [
   { id: 'cm', name: 'Cameroun', available: true },
-  { id: 'sn', name: 'Sénégal', available: false },
-  { id: 'ci', name: "Côte d'Ivoire", available: false },
+  { id: 'ao', name: 'Angola', available: false },
+  { id: 'cg', name: 'Congo-Brazzaville', available: false },
   { id: 'ga', name: 'Gabon', available: false },
+  { id: 'gq', name: 'Guinée équatoriale', available: false },
   { id: 'cd', name: 'RD Congo', available: false },
-  { id: 'ml', name: 'Mali', available: false },
-  { id: 'bj', name: 'Bénin', available: false },
-  { id: 'tg', name: 'Togo', available: false },
+  { id: 'cf', name: 'République centrafricaine', available: false },
+  { id: 'st', name: 'São Tomé-et-Príncipe', available: false },
+  { id: 'td', name: 'Tchad', available: false },
 ];
 
 interface CountrySelectorProps {
