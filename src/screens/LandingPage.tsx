@@ -6,6 +6,8 @@ import { SbsLogo } from '@/components/ui/SbsLogo';
 import { Avatar } from '@/components/ui/Avatar';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { NotifyMeModal } from '@/components/landing/NotifyMeModal';
+import { CountrySelector, type CountryOption } from '@/components/landing/CountrySelector';
+import { CountryWaitlistModal } from '@/components/landing/CountryWaitlistModal';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { TRIPS } from '@/data/trips';
@@ -30,6 +32,7 @@ interface LandingPageProps {
 export function LandingPage({ onNavigate }: LandingPageProps) {
   const { isAuthenticated } = useAuth();
   const [authGate, setAuthGate] = useState<null | { action: string; target: Screen }>(null);
+  const [waitlistCountry, setWaitlistCountry] = useState<CountryOption | null>(null);
 
   /**
    * Si l'utilisateur n'est pas connecté, ouvre la popup "J'ai déjà un compte / Créer un compte".
@@ -45,7 +48,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
 
   return (
     <div className="min-h-screen bg-sbs-cream pb-20">
-      <LandingHeader onNavigate={onNavigate} />
+      <LandingHeader onNavigate={onNavigate} onSelectUnavailableCountry={setWaitlistCountry} />
       <Hero onNavigate={onNavigate} navigateGated={navigateGated} />
       <TrustBar />
       <LifestyleGallery />
@@ -73,6 +76,12 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
           }}
         />
       )}
+
+      <CountryWaitlistModal
+        isOpen={!!waitlistCountry}
+        onClose={() => setWaitlistCountry(null)}
+        country={waitlistCountry}
+      />
     </div>
   );
 }
@@ -81,7 +90,13 @@ type NavigateGated = (target: Screen, action: string) => void;
 
 /* ----------------------------- HEADER ----------------------------- */
 
-function LandingHeader({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+function LandingHeader({
+  onNavigate,
+  onSelectUnavailableCountry,
+}: {
+  onNavigate: (s: Screen) => void;
+  onSelectUnavailableCountry: (country: CountryOption) => void;
+}) {
   return (
     <header className="sticky top-0 z-40 border-b border-sbs-border bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -117,6 +132,7 @@ function LandingHeader({ onNavigate }: { onNavigate: (s: Screen) => void }) {
         </nav>
 
         <div className="flex items-center gap-2">
+          <CountrySelector onSelectUnavailable={onSelectUnavailableCountry} />
           <Button
             variant="ghost"
             size="sm"
