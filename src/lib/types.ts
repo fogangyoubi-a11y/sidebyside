@@ -39,6 +39,24 @@ export type VehicleType = 'berline' | 'citadine' | 'suv' | '4x4' | 'monospace';
 /** Niveau de confort d'un trajet — visible dans la liste de recherche et le filtre. */
 export type TripCategory = 'economique' | 'confort' | 'premium';
 
+/** Type de trajet — voiture (particulier) ou bus (agence). Distinct de VehicleType (style de carrosserie). */
+export type TripType = 'car' | 'bus';
+
+/** Qui opère le trajet — un particulier ou une agence de transport. */
+export type ProviderType = 'individual' | 'agency';
+
+export type AgencyStatus = 'pending' | 'verified' | 'rejected' | 'suspended';
+
+/** Agence de transport (trajets BUS) — propriétaire des trajets de type 'bus'/'agency'. */
+export interface Agency {
+  id: string;
+  name: string;
+  slug: string;
+  phone: string;
+  city?: string;
+  status: AgencyStatus;
+}
+
 export interface City {
   id: string;
   name: string;
@@ -86,6 +104,11 @@ export interface Trip {
   pricePerSeat: number;    // F CFA
   options: TripOption[];
   status: TripStatus;
+  /** Voiture (particulier) ou bus (agence). Optionnel — absent = 'car' (rétrocompat mock/anciens trajets). */
+  type?: TripType;
+  providerType?: ProviderType;
+  /** Agence opérant le trajet — présent seulement si providerType === 'agency'. */
+  agency?: Agency;
 }
 
 export interface SearchFilters {

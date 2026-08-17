@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft, ArrowRight, MapPin, Calendar, Users, Coins,
-  Briefcase, Cat, Cigarette, Music, Wind, CheckCircle2, Car, Sparkles, AlertTriangle,
+  Briefcase, Cat, Cigarette, Music, Wind, CheckCircle2, Car, Bus, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -14,12 +14,17 @@ import { TrustBadge } from '@/components/security/TrustBadge';
 import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { CITIES } from '@/data/cities';
 import { useAuth } from '@/hooks/useAuth';
-import { ApiClient, ApiError } from '@/lib/api';
+import { ApiClient, ApiError, type ApiAgency } from '@/lib/api';
 import { cn, formatXAF } from '@/lib/utils';
 import { todayISO } from '@/lib/search';
-import { getCommissionRate } from '@/lib/commissionTiers';
 import { computeTripCategory, VEHICLE_TYPE_LABEL, PRICE_RANGE_BY_CATEGORY, isPriceValidForCategory, isBargainPrice, ABSOLUTE_MIN_PRICE, CATEGORY_INFO } from '@/lib/category';
-import type { Screen, TripOption, VehicleType } from '@/lib/types';
+import type { Screen, TripOption, TripType, VehicleType } from '@/lib/types';
+
+/** Places max selon le type de trajet — voiture (4) ou bus (70, cf. schema Prisma). */
+const MAX_SEATS_BY_TYPE: Record<TripType, number> = { car: 4, bus: 70 };
+
+/** Commission SBS — taux fixe différencié CAR/BUS (cf. bookings.ts backend). */
+const COMMISSION_RATE_BY_TYPE: Record<TripType, number> = { car: 0.12, bus: 0.06 };
 
 /** Mapping options local → enum API (majuscules). */
 const OPTION_TO_API: Record<TripOption, 'BAGAGES' | 'ANIMAUX' | 'NON_FUMEUR' | 'MUSIQUE' | 'CLIMATISATION'> = {
@@ -57,6 +62,8 @@ interface PublishTripProps {
 }
 
 interface FormState {
+  tripType: TripType;    // 'car' (défaut) ou 'bus' (agence)
+  agencyId: string;      // requis si tripType === 'bus'
   fromId: string;
   toId: string;
   date: string;
@@ -79,6 +86,8 @@ const OPTION_DEFS: Array<{ id: TripOption; icon: typeof Briefcase; label: string
 ];
 
 const initialForm: FormState = {
+  tripType: 'car',
+  agencyId: '',
   fromId: 'douala',
   toId: 'bafoussam',
   date: todayISO(),
@@ -111,6 +120,25 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
   // Aller-retour
   const [withReturn, setWithReturn] = useState(false);
   const [returnTime, setReturnTime] = useState('17:00');
+  // Agences de l'utilisateur — chargées uniquement quand il choisit "Bus"
+  const [myAgencies, setMyAgencies] = useState<ApiAgency[]>([]);
+  const [agenciesLoading, setAgenciesLoading] = useState(false);
+
+  // Charge les agences VÉRIFIÉES appartenant à l'utilisateur dès qu'il passe en mode "Bus"
+  // (seule une agence VERIFIED peut publier — même contrainte que côté backend).
+  useEffect(() => {
+    let cancelled = false;
+    if (isAuthenticated) {
+      setAgenciesLoading(true);
+      ApiClient.listAgencies()
+        .then(({ agencies }) => {
+          if (!cancelled) setMyAgencies(agencies.filter((a) => a.userId === user?.id));
+        })
+        .catch(() => { if (!cancelled) setMyAgencies([]); })
+        .finally(() => { if (!cancelled) setAgenciesLoading(false); });
+    }
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user?.id]);
 
   // Si l'utilisateur arrive ici sans être connecté (ex. URL directe), on lui
   // demande d'abord de se connecter / créer un compte avant le formulaire.
@@ -163,19 +191,24 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
 
   const fromCity = CITIES.find((c) => c.id === form.fromId)!;
   const toCity = CITIES.find((c) => c.id === form.toId)!;
+  const isBus = form.tripType === 'bus';
+  const maxSeats = MAX_SEATS_BY_TYPE[form.tripType];
 
-  // Taux estimé pour l'aperçu (conservateur = palier débutant 15 %).
-  // Le vrai taux dépend des trajets du mois en cours (10 à 15 %).
-  const commissionRate = getCommissionRate(0);
+  // Taux SBS réel — fixe et différencié CAR (12 %) / BUS (6 %), cf. bookings.ts backend.
+  const commissionRate = COMMISSION_RATE_BY_TYPE[form.tripType];
   const commission = Math.round(form.pricePerSeat * commissionRate);
   const driverEarningPerSeat = form.pricePerSeat - commission;
   const driverTotalEarning = driverEarningPerSeat * form.seats;
 
-  // Catégorie calculée d'après le véhicule + options + la fourchette de prix associée
+  // Catégorie calculée d'après le véhicule + options + la fourchette de prix associée.
+  // Le système de catégorie (économique/confort/premium) est pensé pour les voitures ;
+  // pour un bus on retombe sur une simple fourchette de prix autorisée côté backend.
   const category = computeTripCategory(form.vehicleType, form.vehicleYear, form.options);
   const priceRange = PRICE_RANGE_BY_CATEGORY[category];
-  const priceValid = isPriceValidForCategory(form.pricePerSeat, category);
-  const isBargain = isBargainPrice(form.pricePerSeat, category);
+  const priceValid = isBus
+    ? form.pricePerSeat >= 1000 && form.pricePerSeat <= 50000
+    : isPriceValidForCategory(form.pricePerSeat, category);
+  const isBargain = !isBus && isBargainPrice(form.pricePerSeat, category);
 
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(form.date);
   const valid =
@@ -184,7 +217,8 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
     /^\d{2}:\d{2}$/.test(form.time) &&
     form.pickupPoint.trim().length >= 5 &&
     form.dropoffPoint.trim().length >= 5 &&
-    form.seats >= 1 && form.seats <= 4 &&
+    form.seats >= 1 && form.seats <= maxSeats &&
+    (!isBus || form.agencyId !== '') &&
     priceValid;
 
   /** Construit le payload backend et POSTe /api/trips. */
@@ -199,6 +233,9 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
       departure.setHours(hh ?? 0, mm ?? 0, 0, 0);
 
       const { trip } = await ApiClient.publishTrip({
+        type: isBus ? 'BUS' : 'CAR',
+        providerType: isBus ? 'AGENCY' : 'INDIVIDUAL',
+        agencyId: isBus ? form.agencyId : undefined,
         fromCity: form.fromId,
         toCity: form.toId,
         pickupPoint: form.pickupPoint.trim(),
@@ -217,6 +254,9 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
         const returnDeparture = new Date(form.date);
         returnDeparture.setHours(rhh ?? 0, rmm ?? 0, 0, 0);
         await ApiClient.publishTrip({
+          type: isBus ? 'BUS' : 'CAR',
+          providerType: isBus ? 'AGENCY' : 'INDIVIDUAL',
+          agencyId: isBus ? form.agencyId : undefined,
           fromCity: form.toId,
           toCity: form.fromId,
           pickupPoint: form.dropoffPoint.trim(),
@@ -270,6 +310,62 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+        {/* Type de trajet */}
+        <Section title="🚐 Type de trajet">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => update({ tripType: 'car', agencyId: '' })}
+              className={cn(
+                'flex flex-col items-center gap-1.5 rounded-card border-2 px-4 py-3 text-sm font-semibold transition-colors',
+                !isBus ? 'border-sbs-blue bg-sbs-blue-light/40 text-sbs-blue' : 'border-sbs-border bg-white text-sbs-muted hover:border-sbs-blue/40',
+              )}
+            >
+              <Car className="h-5 w-5" />
+              Voiture
+              <span className="text-[10px] font-normal text-sbs-muted">Particulier · 1 à 4 places</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => update({ tripType: 'bus' })}
+              className={cn(
+                'flex flex-col items-center gap-1.5 rounded-card border-2 px-4 py-3 text-sm font-semibold transition-colors',
+                isBus ? 'border-sbs-blue bg-sbs-blue-light/40 text-sbs-blue' : 'border-sbs-border bg-white text-sbs-muted hover:border-sbs-blue/40',
+              )}
+            >
+              <Bus className="h-5 w-5" />
+              Bus
+              <span className="text-[10px] font-normal text-sbs-muted">Agence · jusqu'à 70 places</span>
+            </button>
+          </div>
+
+          {isBus && (
+            <div className="mt-4 rounded-card border border-sbs-blue/20 bg-sbs-blue-light/30 p-3">
+              <label className="text-xs font-semibold text-sbs-dark">Agence</label>
+              {agenciesLoading ? (
+                <p className="mt-1.5 text-[11px] text-sbs-muted">Chargement de vos agences…</p>
+              ) : myAgencies.length === 0 ? (
+                <p className="mt-1.5 text-[11px] text-sbs-red">
+                  🚫 Aucune agence vérifiée associée à votre compte. Enregistrez une agence et attendez sa validation par SideBySide avant de publier un trajet Bus.
+                </p>
+              ) : (
+                <div className="relative mt-1.5 flex items-center rounded-btn border border-sbs-border bg-white">
+                  <select
+                    value={form.agencyId}
+                    onChange={(e) => update({ agencyId: e.target.value })}
+                    className="h-11 w-full flex-1 appearance-none bg-transparent px-3 text-sm font-semibold text-sbs-dark focus:outline-none"
+                  >
+                    <option value="" disabled>Sélectionnez une agence</option>
+                    {myAgencies.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}{a.city ? ` · ${a.city}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
+
         {/* Itinéraire */}
         <Section title="📍 Itinéraire">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -350,7 +446,8 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
           )}
         </Section>
 
-        {/* Véhicule */}
+        {/* Véhicule — pertinent uniquement pour les trajets Voiture (catégorie économique/confort/premium) */}
+        {!isBus && (
         <Section title="🚗 Votre véhicule">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -427,6 +524,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
             </div>
           </div>
         </Section>
+        )}
 
         {/* Options */}
         <Section title="🛋 Options du trajet">
@@ -458,13 +556,15 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
 
         {/* Places & prix — APRÈS le véhicule pour que le chauffeur connaisse déjà sa catégorie */}
         <Section title="👥 Places & prix par passager">
-          {/* Rappel visuel de la catégorie pour préparer le chauffeur à la fourchette */}
-          <div className="mb-3 flex items-center justify-between gap-2 rounded-card bg-sbs-cream px-3 py-2">
-            <div className="text-[11px] text-sbs-muted">
-              Votre trajet est classé :
+          {/* Rappel visuel de la catégorie pour préparer le chauffeur à la fourchette — non applicable au Bus */}
+          {!isBus && (
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-card bg-sbs-cream px-3 py-2">
+              <div className="text-[11px] text-sbs-muted">
+                Votre trajet est classé :
+              </div>
+              <CategoryBadge category={category} size="md" />
             </div>
-            <CategoryBadge category={category} size="md" />
-          </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -478,11 +578,11 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                 <span className="font-display text-lg font-extrabold text-sbs-dark">{form.seats}</span>
                 <button
                   type="button"
-                  onClick={() => update({ seats: Math.min(4, form.seats + 1) })}
+                  onClick={() => update({ seats: Math.min(maxSeats, form.seats + 1) })}
                   className="grid h-11 w-11 place-items-center text-sbs-dark transition-colors hover:bg-sbs-border-soft"
                 >+</button>
               </div>
-              <p className="mt-1 text-[11px] text-sbs-muted">1 à 4 passagers</p>
+              <p className="mt-1 text-[11px] text-sbs-muted">1 à {maxSeats} passagers</p>
             </div>
             <div>
               <label className="text-xs font-semibold text-sbs-dark">
@@ -501,7 +601,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  placeholder={priceRange.suggested.toString()}
+                  placeholder={isBus ? '5000' : priceRange.suggested.toString()}
                   value={form.pricePerSeat > 0 ? String(form.pricePerSeat) : ''}
                   onChange={(e) => {
                     // On accepte uniquement les chiffres et on cap à 5 (max 99 999 F)
@@ -515,42 +615,58 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               </div>
 
               {/* Message contextuel selon le prix */}
-              {priceValid && isBargain && (
-                <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-sbs-yellow-dark">
-                  🎁 Bon plan ! Vous proposez votre {CATEGORY_INFO[category].label} sous le tarif normal — le passager va adorer.
-                </p>
-              )}
-              {priceValid && !isBargain && (
-                <p className="mt-1 text-[11px] text-sbs-muted">
-                  ✓ Tarif normal {CATEGORY_INFO[category].label} : {priceRange.min.toLocaleString('fr-FR')} – {priceRange.max.toLocaleString('fr-FR')} F CFA
-                </p>
-              )}
-              {!priceValid && form.pricePerSeat > priceRange.max && (
+              {isBus ? (
                 <>
-                  <p className="mt-1 text-[11px] font-semibold text-sbs-red">
-                    🚫 Trop élevé pour votre catégorie {CATEGORY_INFO[category].label} (plafond {priceRange.max.toLocaleString('fr-FR')} F CFA)
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => update({ pricePerSeat: priceRange.suggested })}
-                    className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
-                  >
-                    ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
-                  </button>
+                  {priceValid ? (
+                    <p className="mt-1 text-[11px] text-sbs-muted">
+                      ✓ Tarif autorisé : 1 000 – 50 000 F CFA
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] font-semibold text-sbs-red">
+                      🚫 Le prix doit être compris entre 1 000 et 50 000 F CFA
+                    </p>
+                  )}
                 </>
-              )}
-              {!priceValid && form.pricePerSeat < ABSOLUTE_MIN_PRICE && (
+              ) : (
                 <>
-                  <p className="mt-1 text-[11px] font-semibold text-sbs-red">
-                    🚫 Trop bas — prix minimum {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => update({ pricePerSeat: ABSOLUTE_MIN_PRICE })}
-                    className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
-                  >
-                    ✨ Mettre {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
-                  </button>
+                  {priceValid && isBargain && (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-sbs-yellow-dark">
+                      🎁 Bon plan ! Vous proposez votre {CATEGORY_INFO[category].label} sous le tarif normal — le passager va adorer.
+                    </p>
+                  )}
+                  {priceValid && !isBargain && (
+                    <p className="mt-1 text-[11px] text-sbs-muted">
+                      ✓ Tarif normal {CATEGORY_INFO[category].label} : {priceRange.min.toLocaleString('fr-FR')} – {priceRange.max.toLocaleString('fr-FR')} F CFA
+                    </p>
+                  )}
+                  {!priceValid && form.pricePerSeat > priceRange.max && (
+                    <>
+                      <p className="mt-1 text-[11px] font-semibold text-sbs-red">
+                        🚫 Trop élevé pour votre catégorie {CATEGORY_INFO[category].label} (plafond {priceRange.max.toLocaleString('fr-FR')} F CFA)
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => update({ pricePerSeat: priceRange.suggested })}
+                        className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                      >
+                        ✨ Utiliser le prix suggéré ({priceRange.suggested.toLocaleString('fr-FR')} F CFA)
+                      </button>
+                    </>
+                  )}
+                  {!priceValid && form.pricePerSeat < ABSOLUTE_MIN_PRICE && (
+                    <>
+                      <p className="mt-1 text-[11px] font-semibold text-sbs-red">
+                        🚫 Trop bas — prix minimum {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => update({ pricePerSeat: ABSOLUTE_MIN_PRICE })}
+                        className="mt-1.5 text-[11px] font-bold text-sbs-blue hover:underline"
+                      >
+                        ✨ Mettre {ABSOLUTE_MIN_PRICE.toLocaleString('fr-FR')} F CFA
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -564,7 +680,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
               <Row label={`Prix par passager`} value={formatXAF(form.pricePerSeat)} />
               <Row label={`Nombre de places`} value={`× ${form.seats}`} subtle />
               <Row label="Sous-total" value={formatXAF(form.pricePerSeat * form.seats)} subtle />
-              <Row label={`Commission SideBySide (10–15 % selon palier)`} value={`− ${formatXAF(commission * form.seats)}`} subtle />
+              <Row label={`Commission SideBySide (${Math.round(commissionRate * 100)} % — ${isBus ? 'bus' : 'voiture'})`} value={`− ${formatXAF(commission * form.seats)}`} subtle />
               <div className="border-t border-sbs-yellow/40 pt-2" />
               <Row label="Vos gains nets" value={formatXAF(driverTotalEarning)} highlight />
             </dl>
@@ -601,7 +717,7 @@ export function PublishTrip({ onNavigate }: PublishTripProps) {
             disabled={!valid || submitting}
             className="rounded-pill min-w-[200px]"
           >
-            <Car className="h-4 w-4" />
+            {isBus ? <Bus className="h-4 w-4" /> : <Car className="h-4 w-4" />}
             {submitting ? 'Publication…' : withReturn ? 'Publier aller + retour' : 'Publier le trajet'}
             <ArrowRight className="h-4 w-4" />
           </Button>

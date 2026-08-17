@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, MapPin, Clock, Users, Car, Star, ShieldCheck, Briefcase, Cat,
-  Cigarette, Music, Wind, MessageCircle, Calendar, ArrowRight, Loader2,
+  Cigarette, Music, Wind, MessageCircle, Calendar, ArrowRight, Loader2, Bus, Building2, Phone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -93,6 +93,8 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
   const arrival = new Date(departure.getTime() + trip.durationMin * 60 * 1000);
   const totalPrice = trip.pricePerSeat * seats;
   const trustLevel = trip.driver.trustLevel ?? 'basic';
+  const isBus = trip.type === 'bus';
+  // La catégorie économique/confort/premium ne s'applique qu'aux trajets Voiture.
   const category = computeTripCategory(trip.driver.car.type, trip.driver.car.year, trip.options);
   const categoryInfo = CATEGORY_INFO[category];
 
@@ -170,9 +172,47 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
           </div>
         </section>
 
+        {/* Carte Agence — uniquement pour les trajets Bus */}
+        {isBus && trip.agency && (
+          <section className="mt-4 rounded-card-lg border border-sbs-blue/30 bg-sbs-blue-light/40 p-5 shadow-card sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-card bg-white shadow-soft">
+                <Building2 className="h-6 w-6 text-sbs-blue" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-lg font-extrabold text-sbs-dark">
+                    {trip.agency.name}
+                  </span>
+                  {trip.agency.status === 'verified' && (
+                    <span className="inline-flex items-center gap-1 rounded-pill bg-sbs-green/15 px-2 py-0.5 text-[10px] font-extrabold text-sbs-green">
+                      <ShieldCheck className="h-3 w-3" />
+                      Agence vérifiée
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-sbs-muted">
+                  {trip.agency.city && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {trip.agency.city}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <Phone className="h-3.5 w-3.5" />
+                    {trip.agency.phone}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Carte Chauffeur */}
         <section className="mt-4 rounded-card-lg border border-sbs-border bg-white p-5 shadow-card sm:p-6">
-          <h2 className="mb-4 font-display text-base font-extrabold text-sbs-dark">Votre chauffeur</h2>
+          <h2 className="mb-4 font-display text-base font-extrabold text-sbs-dark">
+            {isBus ? 'Conducteur du bus' : 'Votre chauffeur'}
+          </h2>
 
           <div className="flex items-start gap-4">
             <Avatar name={trip.driver.name} size="lg" />
@@ -190,8 +230,12 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
                 </span>
                 <span>·</span>
                 <span><strong className="text-sbs-dark">{trip.driver.tripsCompleted}</strong> trajets</span>
-                <span>·</span>
-                <span>{trip.driver.yearsActive} ans</span>
+                {!isBus && (
+                  <>
+                    <span>·</span>
+                    <span>{trip.driver.yearsActive} ans</span>
+                  </>
+                )}
               </div>
               {trip.driver.bio && (
                 <p className="mt-2 text-xs leading-relaxed text-sbs-muted">
@@ -204,38 +248,49 @@ export function TripDetail({ tripId, onNavigate }: TripDetailProps) {
           {/* Carte véhicule */}
           <div className="mt-4 flex items-center gap-3 rounded-card border border-sbs-border-soft bg-sbs-cream p-3">
             <div className="grid h-10 w-10 place-items-center rounded-card bg-white shadow-soft">
-              <Car className="h-5 w-5 text-sbs-blue" />
+              {isBus ? <Bus className="h-5 w-5 text-sbs-blue" /> : <Car className="h-5 w-5 text-sbs-blue" />}
             </div>
             <div className="flex-1 text-xs">
               <div className="font-bold text-sbs-dark">
-                {trip.driver.car.model} <span className="text-sbs-muted">· {trip.driver.car.color}</span>
+                {trip.driver.car.model} {trip.driver.car.color && <span className="text-sbs-muted">· {trip.driver.car.color}</span>}
               </div>
               <div className="text-[11px] text-sbs-muted">
-                {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year} · Plaque <span className="font-mono">{trip.driver.car.plate}</span>
+                {isBus
+                  ? <>Plaque <span className="font-mono">{trip.driver.car.plate}</span></>
+                  : <>{VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year} · Plaque <span className="font-mono">{trip.driver.car.plate}</span></>}
               </div>
             </div>
-            <CategoryBadge category={category} size="sm" />
+            {isBus ? (
+              <span className="inline-flex items-center gap-1 rounded-pill border-2 border-sbs-blue bg-white px-2 py-1 text-[10px] font-extrabold text-sbs-blue">
+                <Bus className="h-3 w-3" />
+                Bus
+              </span>
+            ) : (
+              <CategoryBadge category={category} size="sm" />
+            )}
           </div>
         </section>
 
-        {/* Carte catégorie : explication de ce que veut dire "Premium VIP" */}
-        <section className={cn(
-          'mt-4 rounded-card-lg border p-4 sm:p-5',
-          categoryInfo.bgClass,
-          categoryInfo.borderClass,
-        )}>
-          <div className="flex items-start gap-3">
-            <span className="text-3xl" aria-hidden>{categoryInfo.emoji}</span>
-            <div className="flex-1">
-              <div className={cn('font-display text-base font-extrabold', categoryInfo.textClass)}>
-                Niveau {categoryInfo.label}
-              </div>
-              <div className="mt-0.5 text-xs leading-relaxed text-sbs-dark/80">
-                {categoryInfo.tagline}
+        {/* Carte catégorie : explication de ce que veut dire "Premium VIP" — n'a de sens que pour les trajets Voiture */}
+        {!isBus && (
+          <section className={cn(
+            'mt-4 rounded-card-lg border p-4 sm:p-5',
+            categoryInfo.bgClass,
+            categoryInfo.borderClass,
+          )}>
+            <div className="flex items-start gap-3">
+              <span className="text-3xl" aria-hidden>{categoryInfo.emoji}</span>
+              <div className="flex-1">
+                <div className={cn('font-display text-base font-extrabold', categoryInfo.textClass)}>
+                  Niveau {categoryInfo.label}
+                </div>
+                <div className="mt-0.5 text-xs leading-relaxed text-sbs-dark/80">
+                  {categoryInfo.tagline}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Options */}
         {trip.options.length > 0 && (

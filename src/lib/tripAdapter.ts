@@ -25,6 +25,13 @@ const API_TRUST_TO_LOCAL: Record<ApiTrip['driver']['trustLevel'], 'basic' | 'ver
   PREMIUM: 'premium',
 };
 
+const API_AGENCY_STATUS_TO_LOCAL: Record<string, 'pending' | 'verified' | 'rejected' | 'suspended'> = {
+  PENDING: 'pending',
+  VERIFIED: 'verified',
+  REJECTED: 'rejected',
+  SUSPENDED: 'suspended',
+};
+
 /** Masque une plaque type "LT 489 AA" en "LT 4** AA". */
 export function maskPlate(plate: string): string {
   if (plate.length < 5) return plate;
@@ -68,5 +75,17 @@ export function adaptApiTrip(a: ApiTrip): Trip {
       : a.status === 'DEPARTED' ? 'departed'
       : a.status === 'COMPLETED' ? 'completed'
       : 'cancelled',
+    type: a.type === 'BUS' ? 'bus' : 'car',
+    providerType: a.providerType === 'AGENCY' ? 'agency' : 'individual',
+    agency: a.agency
+      ? {
+          id: a.agency.id,
+          name: a.agency.name,
+          slug: a.agency.slug,
+          phone: a.agency.phone,
+          city: a.agency.city ?? undefined,
+          status: API_AGENCY_STATUS_TO_LOCAL[a.agency.status] ?? 'pending',
+        }
+      : undefined,
   };
 }

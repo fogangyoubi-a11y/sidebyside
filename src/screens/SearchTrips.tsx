@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock, Loader2, Cloud, CloudOff, Gift, X } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Users, ArrowRight, Filter, Star, Briefcase, Music, Wind, Cat, Cigarette, Clock, Loader2, Cloud, CloudOff, Gift, X, Car, Bus, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { SbsLogo } from '@/components/ui/SbsLogo';
@@ -41,6 +41,7 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
   });
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<TripCategory | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'car' | 'bus'>('all');
   const [apiTrips, setApiTrips] = useState<Trip[] | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -80,23 +81,42 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
   const allResults = apiTrips ?? mockResults;
   const isLive = apiTrips !== null;
 
-  // Filtrage par catégorie
+  // Filtrage par type de trajet (Voiture / Bus) — trip.type absent = 'car' (trajets historiques)
+  const typeFiltered = useMemo(() => {
+    if (typeFilter === 'all') return allResults;
+    return allResults.filter((t) => (t.type ?? 'car') === typeFilter);
+  }, [allResults, typeFilter]);
+
+  // Compteurs par type (pour les pills "Voiture (5)" / "Bus (2)")
+  const countsByType = useMemo(() => {
+    const counts = { car: 0, bus: 0 };
+    for (const t of allResults) {
+      if ((t.type ?? 'car') === 'bus') counts.bus++;
+      else counts.car++;
+    }
+    return counts;
+  }, [allResults]);
+
+  // Filtrage par catégorie — n'a de sens que pour les trajets Voiture (système
+  // économique/confort/premium basé sur le véhicule). Les trajets Bus passent
+  // à travers sans filtrage de catégorie.
   const results = useMemo(() => {
-    if (categoryFilter === 'all') return allResults;
-    return allResults.filter((t) =>
-      computeTripCategory(t.driver.car.type, t.driver.car.year, t.options) === categoryFilter,
+    if (categoryFilter === 'all') return typeFiltered;
+    return typeFiltered.filter((t) =>
+      (t.type ?? 'car') === 'bus' || computeTripCategory(t.driver.car.type, t.driver.car.year, t.options) === categoryFilter,
     );
-  }, [allResults, categoryFilter]);
+  }, [typeFiltered, categoryFilter]);
 
   // Compteurs par catégorie (pour afficher dans les pills "Confort (3)")
   const countsByCategory = useMemo(() => {
     const counts: Record<TripCategory, number> = { economique: 0, confort: 0, premium: 0 };
-    for (const t of allResults) {
+    for (const t of typeFiltered) {
+      if ((t.type ?? 'car') === 'bus') continue;
       const cat = computeTripCategory(t.driver.car.type, t.driver.car.year, t.options);
       counts[cat]++;
     }
     return counts;
-  }, [allResults]);
+  }, [typeFiltered]);
 
   function swapCities() {
     setFilters((f) => ({ ...f, fromId: f.toId, toId: f.fromId }));
@@ -241,6 +261,38 @@ export function SearchTrips({ onNavigate, initialFromId, initialToId }: SearchTr
           </div>
 
           {showFilters && <AdvancedFilters filters={filters} onChange={setFilters} />}
+        </section>
+
+        {/* Filtre type — pills Tous / Voiture / Bus */}
+        <section className="mt-4 -mx-1 flex items-center gap-2 overflow-x-auto scrollbar-hide px-1">
+          {(['all', 'car', 'bus'] as const).map((t) => {
+            const active = typeFilter === t;
+            const count = t === 'all' ? allResults.length : countsByType[t];
+            const Icon = t === 'all' ? null : t === 'car' ? Car : Bus;
+            const label = t === 'all' ? 'Tous types' : t === 'car' ? 'Voiture' : 'Bus';
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTypeFilter(t)}
+                className={cn(
+                  'shrink-0 inline-flex items-center gap-1.5 rounded-pill border-2 px-3 py-1.5 text-xs font-bold transition-all',
+                  active
+                    ? 'bg-sbs-blue text-white border-sbs-blue shadow-soft scale-[1.02]'
+                    : 'border-sbs-border bg-white text-sbs-muted hover:border-sbs-blue/40 hover:text-sbs-dark',
+                )}
+              >
+                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {label}
+                <span className={cn(
+                  'inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-extrabold',
+                  active ? 'bg-white/30 text-current' : 'bg-sbs-border-soft text-sbs-muted',
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </section>
 
         {/* Filtre catégorie — pills Économique / Confort / Premium VIP */}
@@ -414,8 +466,11 @@ function AdvancedFilters({
 function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: number; onSelect: () => void }) {
   const departure = new Date(trip.departureAt);
   const arrival = new Date(departure.getTime() + trip.durationMin * 60 * 1000);
+  const isBus = trip.type === 'bus';
+  // La catégorie économique/confort/premium n'a de sens que pour les trajets Voiture
+  // (elle se base sur le style de carrosserie et l'année du véhicule du particulier).
   const category = computeTripCategory(trip.driver.car.type, trip.driver.car.year, trip.options);
-  const bargain = isBargainPrice(trip.pricePerSeat, category);
+  const bargain = !isBus && isBargainPrice(trip.pricePerSeat, category);
 
   return (
     <li>
@@ -429,19 +484,35 @@ function TripCard({ trip, passengers, onSelect }: { trip: Trip; passengers: numb
             : 'border-sbs-border hover:border-sbs-blue/40',
         )}
       >
-        {/* Badge catégorie + badge Bon plan si applicable */}
+        {/* Badge catégorie (voiture) ou badge Bus/agence + badge Bon plan si applicable */}
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CategoryBadge category={category} size="md" />
+            {isBus ? (
+              <span className="inline-flex items-center gap-1.5 rounded-pill border-2 border-sbs-blue bg-sbs-blue-light px-2.5 py-1 text-[11px] font-extrabold text-sbs-blue">
+                <Bus className="h-3.5 w-3.5" />
+                Bus
+              </span>
+            ) : (
+              <CategoryBadge category={category} size="md" />
+            )}
             {bargain && (
               <span className="inline-flex items-center gap-1 rounded-pill border border-sbs-yellow bg-sbs-yellow-light px-2 py-0.5 text-[10px] font-extrabold text-sbs-yellow-dark">
                 🎁 Bon plan
               </span>
             )}
           </div>
-          <span className="text-[11px] text-sbs-muted">
-            {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year}
-          </span>
+          {isBus ? (
+            trip.agency && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sbs-muted">
+                <Building2 className="h-3 w-3" />
+                {trip.agency.name}
+              </span>
+            )
+          ) : (
+            <span className="text-[11px] text-sbs-muted">
+              {VEHICLE_TYPE_LABEL[trip.driver.car.type]} · {trip.driver.car.year}
+            </span>
+          )}
         </div>
 
         <div className="flex gap-4">

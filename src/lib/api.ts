@@ -197,6 +197,24 @@ export interface ApiUserFull extends ApiUser {
   createdAt: string;
 }
 
+/** Agence de transport — telle que renvoyée par le backend (GET/POST /agencies). */
+export interface ApiAgency {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  phone: string;
+  address: string | null;
+  city: string | null;
+  rccm: string | null;
+  niu: string | null;
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED';
+  verifiedAt: string | null;
+  createdAt: string;
+  /** Propriétaire de l'agence — présent car le backend ne restreint pas les champs renvoyés. */
+  userId: string;
+}
+
 export interface ApiTrip {
   id: string;
   driverId: string;
@@ -211,6 +229,9 @@ export interface ApiTrip {
   pricePerSeat: number;
   options: Array<'BAGAGES' | 'ANIMAUX' | 'NON_FUMEUR' | 'MUSIQUE' | 'CLIMATISATION'>;
   status: 'AVAILABLE' | 'FULL' | 'DEPARTED' | 'COMPLETED' | 'CANCELLED';
+  /** VOITURE (particulier) ou BUS (agence). */
+  type: 'CAR' | 'BUS';
+  providerType: 'INDIVIDUAL' | 'AGENCY';
   driver: {
     id: string;
     firstName: string;
@@ -219,7 +240,9 @@ export interface ApiTrip {
     ratingAvg: number | null;
     tripsCompleted: number;
   };
-  vehicle?: { model: string; color: string; plate: string } | null;
+  vehicle?: { model: string; color: string; plate: string; type?: string; capacity?: number } | null;
+  /** Présente uniquement pour les trajets BUS/AGENCY. */
+  agency?: { id: string; name: string; slug: string; phone: string; city: string | null; status: string } | null;
 }
 
 export const ApiClient = {
@@ -241,6 +264,11 @@ export const ApiClient = {
 
   /** Publier un trajet — DRIVER uniquement, sinon 403. */
   publishTrip: (data: {
+    /** VOITURE (défaut) ou BUS. */
+    type?: 'CAR' | 'BUS';
+    /** INDIVIDUAL (défaut) ou AGENCY — AGENCY requiert agencyId. */
+    providerType?: 'INDIVIDUAL' | 'AGENCY';
+    agencyId?: string;
     fromCity: string;
     toCity: string;
     pickupPoint: string;
@@ -253,6 +281,37 @@ export const ApiClient = {
     options: Array<'BAGAGES' | 'ANIMAUX' | 'NON_FUMEUR' | 'MUSIQUE' | 'CLIMATISATION'>;
     vehicleId?: string;
   }) => api<{ trip: ApiTrip }>('/trips', { body: data }),
+
+  /* ---- Agences ---- */
+
+  /** Liste publique des agences vérifiées (filtre ville optionnel). Un ADMIN voit tout. */
+  listAgencies: (params?: { city?: string; status?: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED' }) =>
+    api<{ agencies: ApiAgency[]; count: number }>('/agencies', { query: params }),
+
+  getAgency: (id: string) =>
+    api<{ agency: ApiAgency & { vehicles: unknown[] } }>(`/agencies/${id}`),
+
+  /** Enregistrer une nouvelle agence — statut PENDING en attendant validation admin. */
+  createAgency: (data: {
+    name: string; email: string; phone: string;
+    address?: string; city?: string; rccm?: string; niu?: string;
+    documents?: unknown;
+  }) => api<{ agency: ApiAgency }>('/agencies', { body: data }),
+
+  updateAgency: (id: string, data: Partial<{
+    name: string; email: string; phone: string;
+    address: string; city: string; rccm: string; niu: string; documents: unknown;
+  }>) => api<{ agency: ApiAgency }>(`/agencies/${id}`, { method: 'PUT', body: data }),
+
+  deleteAgency: (id: string) =>
+    api<void>(`/agencies/${id}`, { method: 'DELETE' }),
+
+  /** Validation/rejet d'une agence — ADMIN uniquement. */
+  verifyAgency: (id: string, action: 'VERIFY' | 'REJECT' | 'SUSPEND') =>
+    api<{ agency: ApiAgency }>(`/agencies/${id}/verify`, { body: { action } }),
+
+  addAgencyDocuments: (id: string, documents: Record<string, unknown>) =>
+    api<{ agency: ApiAgency }>(`/agencies/${id}/documents`, { body: { documents } }),
 
   /* ---- Auth ---- */
   sendOtp: (phone: string) =>
